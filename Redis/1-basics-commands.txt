@@ -1,0 +1,22 @@
+SET message 'hi redis'
+GET message 
+SET message "hi programmer" GET  //get retrieves the previous message value 
+SET message "how are you" XX  //XX only set this key if its existed before
+SET message "how are you" NX  //NX only set this key if its NOT existed before
+//note: SETEX or SETNX are same as SET with EX or NX args
+
+SET color "red" EX 2  // key will be deleted after 2sec... 
+//PX miliseconds  EXAT|PXAT  datetiem, KEEPTTL keep any expiration that has already been applied to this key. 
+MSET color red model toyota   //set multitple keys
+MSETNX  color 'red' model 'BMW'  //if a key existed , not set is done 
+MGET color model   //get multitple
+DEL color //delete any kind of key 
+GETRAGE 1 3  //get a portion of string 
+SETRANGE 3 'blue'  //update a portion fo text 
+
+//numebrs 
+INCR age                                //increase by one 
+DECR age                                //decrease by one 
+INCRBY  age 10                          // increase by 10 
+DECRBY age 10                           //decrease by 10 
+INCRBYFLOAT age 10.33 or -10.33         //increase or decrease float 
