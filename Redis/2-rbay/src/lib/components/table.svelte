@@ -76,10 +76,7 @@
 				{#each columns as column}
 					<td class="border-b-2 p-4">
 						{#if column.component}
-							<svelte:component
-								this={column.component}
-								{...column.props ? column.props(item) : {}}
-							/>
+							<svelte:component this={column.component} {...column.props ? column.props(item) : {}} />
 						{:else if column.formatter}
 							{column.formatter(item)}
 						{:else}

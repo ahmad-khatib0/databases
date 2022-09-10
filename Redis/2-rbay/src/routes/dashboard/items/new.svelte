@@ -54,11 +54,7 @@
 
 		<div class="flex flex-col mb-2">
 			<label for="duration" class="font-bold">Duration</label>
-			<select
-				bind:value={duration}
-				id="duration"
-				class="border py-2 px-5 shadow-sm border-gray-300 rounded"
-			>
+			<select bind:value={duration} id="duration" class="border py-2 px-5 shadow-sm border-gray-300 rounded">
 				<option value={60}>One Minute</option>
 				<option value={60 * 10}>Ten Minutes</option>
 				<option value={60 * 60 * 24}>One Day</option>

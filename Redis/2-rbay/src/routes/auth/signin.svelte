@@ -25,12 +25,8 @@
 <div
 	class="flex flex-col mx-auto items-center max-w-md px-4 py-8 bg-white rounded-lg shadow dark:bg-gray-800 sm:px-6 md:px-8 lg:px-10"
 >
-	<div class="self-center mb-2 text-xl font-light text-gray-800 sm:text-2xl dark:text-white">
-		Sign In
-	</div>
-	<span
-		class="justify-center text-sm text-center text-gray-500 flex-items-center dark:text-gray-400"
-	>
+	<div class="self-center mb-2 text-xl font-light text-gray-800 sm:text-2xl dark:text-white">Sign In</div>
+	<span class="justify-center text-sm text-center text-gray-500 flex-items-center dark:text-gray-400">
 		Don't have an account ?
 		<a href="/auth/signup" class="text-sm text-blue-500 underline hover:text-blue-700"> Sign up </a>
 	</span>

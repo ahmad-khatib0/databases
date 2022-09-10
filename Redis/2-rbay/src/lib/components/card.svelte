@@ -22,9 +22,7 @@
 
 <div class="w-80 flex justify-center items-center">
 	<div class="w-full p-2">
-		<div
-			class="card flex flex-col justify-center p-8 border-gray-400 bg-white shadow border rounded-lg"
-		>
+		<div class="card flex flex-col justify-center p-8 border-gray-400 bg-white shadow border rounded-lg">
 			<div class="prod-title">
 				<a href={`/items/${item.id}`}>
 					<p class="h-16 text-ellipsis overflow-hidden text-xl uppercase text-gray-900 font-bold">
@@ -42,11 +40,7 @@
 			</div>
 			<div class="prod-img">
 				<a href={`/items/${item.id}`}>
-					<img
-						src={item.imageUrl}
-						alt=""
-						class="w-full object-cover object-center h-44 my-4 rounded"
-					/>
+					<img src={item.imageUrl} alt="" class="w-full object-cover object-center h-44 my-4 rounded" />
 				</a>
 			</div>
 			<div class="prod-info grid gap-10">

@@ -57,9 +57,7 @@
 
 <div class="relative">
 	{#if !bidHistory.length}
-		<div class="absolute inset-0 flex justify-center items-center text-3xl text-slate-500">
-			No Bids Yet
-		</div>
+		<div class="absolute inset-0 flex justify-center items-center text-3xl text-slate-500">No Bids Yet</div>
 	{/if}
 	<canvas bind:this={canvas} />
 </div>

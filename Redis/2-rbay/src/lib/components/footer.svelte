@@ -11,24 +11,16 @@
 				<div class="text-center">
 					<h2 class="text-gray-500 dark:text-gray-200 text-md uppercase mb-4">Components</h2>
 					<ul>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Elements </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Forms </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Commerces </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Navigation </a>
 						</li>
 					</ul>
@@ -38,24 +30,16 @@
 				<div class="text-center">
 					<h2 class="text-gray-500 dark:text-gray-200 text-md uppercase mb-4">Contacts</h2>
 					<ul>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Github </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Facebook </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Twitter </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> LinkedIn </a>
 						</li>
 					</ul>
@@ -65,24 +49,16 @@
 				<div class="text-center">
 					<h2 class="text-gray-500 dark:text-gray-200 text-md uppercase mb-4">Company</h2>
 					<ul>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/privacy"> Privacy </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/about"> About Us </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> Plugins </a>
 						</li>
-						<li
-							class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200"
-						>
+						<li class="mb-4 hover:text-gray-800 dark:hover:text-white transition-colors duration-200">
 							<a href="/"> LinkedIn </a>
 						</li>
 					</ul>
