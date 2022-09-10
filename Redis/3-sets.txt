@@ -1,0 +1,14 @@
+///    SET IS ABOUT UNIQUENESS,  LIKE UNIQUE VALUES IN A SQL COLUMN,   return 1 on succes , 0 on failure 
+SADD  colors red                                   // add 
+SMEMBERS  colors                                   //get all sets 
+SADD colors:1 red blue green                       //add multiple 
+SUNION colros:1 colors:2                           //get all unique elements from all sets 
+SINTER colros:1 colors:2                           //return all elements that existed in all sets 
+SDIFF  colors:1 colors:2                           //return elements that only exist in only one set (comparing from left side) 
+SINTERSTORE colors:result colors:1 colors:2        //insert diff of colors:1 and colors:2 in colors:result 
+SISMEMBER  colors:result blue                      //check if blue exists 
+SMISMEMBER colors:1 red green blue                 //checks for multiple set's elements 
+SCARD  colros:1                                    //number of elements in set 
+SREM   colors:1 red                                //remove 
+SSCAN  colors:1 0 COUNT 33                         //zero is the cursor id, this will return elements, and the next 
+//page cursor number,   that thing we can to use later to fetch thing after the previous ones, (LIKE LIMIT IN SQ)
