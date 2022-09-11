@@ -37,3 +37,24 @@ ZRANGE products -inf 44 BYSCORE WITHSCROES             //get members between tow
 ZRANGE products 1 2 REV LIMIT 1 3                      //reverse sets, get members between 1 and 2 index, 
 // and for limit skip the first member and give me the next tow 
 //LIMIT is usualy Used with BYSCORE , for example for pagination purposes 
+
+
+
+
+
+
+/////////////////////////////// THE SORT COMMAND ///////////////////////////////////////
+the sort command  operate operate on the members when sorting sorted list, rather than the score ; 
+SORT books:likes ALPHA 
+SORT books:likes LIMIT 1 2 ALPHA                 
+SORT books:likes BY books:*->year                          // sort books:likes SET by the year member in the SORTED SET called books
+//how the last command works? each member from the books:likes will be placed in place of the * , and in each loop it will for example like 
+//books:complete-history and look on the member that called year (->year) and extract it, repeat the loop , and sort them based on the BY  
+SORT books:likes BY books:*->year GET books:*->title         //like the previous steps, while here its like joining another set 
+// so sort books:likes BY book's year member , and return only the title member from books set 
+SORT books:likes BY books:*->year GET books:*->title  GET books:*->year  // unlimited GETs 
+SORT books:likes BY books:*->year GET # GET books:*->title               //# to include the sorting criteria member in the return 
+SORT books:likes BY nosort GET books:*->title                            //just a join, a good idea because already a sorted list  
+SORT books:likes BY asdfasdfasdfasdf  DESC GET books:*->title            //like the nosort option, beacuse this key does not exist  
+
+
