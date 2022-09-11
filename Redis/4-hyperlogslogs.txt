@@ -1,0 +1,8 @@
+algorithm for approximately counting the number of unique elements 
+similar to set but doesn't store the elements 
+hyperlogslogs is 12kb always , no matter how many elements are added 
+about 0.81%  error tolerance  
+
+PFADD vegetables tomatoes             //add 
+PFCOUNT vegetables                    //count  
+
