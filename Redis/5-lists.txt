@@ -1,0 +1,24 @@
+////////////LISTS IS FOR STORING AN ORDERED LIST OF STRINGS  /////////////////////////////////////
+Implemented as a doubly-linked list
+Often used for time-series data
+use cases  
+Append-only or prepend-only data  (temperature readings, stock values)
+When you only need the last/first N values of something
+Your data has no sort order besides the order it was inserted
+
+LPUHS temps 55                                 //add to the begin 
+RPUSH temps 44                                 //to right (end) 
+LLEN  temps                                    //length 
+LINDEX temps 2                                 //at index (-2 is valid also ) 
+LRANGE temps 1 -3                              //find between range
+LPOS temps 33                                  //find the index of element  
+LPOS temps 33 RANK 2                           //find the 2th instance of 33 
+LPOS temps 33 COUNT  2                         //retrieve the indexes of the 2 first matches 
+LPOS temps 33 RANK 2 MAXLEN 10                 //only search the first 10 elements 
+LPOP temps                                     //remove at begin 
+RPOP temps 3                                   //remove the last 3 
+LSET temps 2 44                                //update the element of index 2 
+LTRIM temps 4 6                                //delete all elements that are NOT between 4 and 6 
+LINSERT temps BEFORE 30 18                     //or AFTER, insert an element (18) before the element of value 30 
+LREM temps -2 23                               //-2 start from right, remove 2 copies of 23...
+// 3  23   remove 3 copies of 23 from left ,... 0 23  remove all copies 
