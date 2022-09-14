@@ -1,0 +1,22 @@
+////////////////////////////  WATCHING A TRANSACTION ///////////////////////
+WATCH color                       //watch color unitl next tx is excuted, if it changed cancel the transaction 
+MULTI                             //start new transaction
+// queue up this command to run: 
+SET color red 
+SET another something 
+
+EXEC                             //run all the queued commands
+
+
+////////////////////////// LUA SCRIPTS IN RIDES ////////////////////////////
+//1-static 
+LOAD SCRIPT 'return 1 + 1'                                        // => script id 
+EVALSHA scriptId 0                                                //execute this script 
+
+//2-dynamic with args 
+LOAD SCRIPT 'return 1 + tonumber(ARGV[1]) + tonumber(ARGV[2])'    //allow you to pass dynamic args 
+EVALSHA scriptId 0 '100' '100'                                    //'100' is the 1th arg,  => 201  
+
+//3-keys   (redis wanna know exactly which keys we wanna access ahead of time )
+SCRIPT LOAD 'return redis.call("GET", KEYS[1])'         
+EVALSHA scriptId 2 color items                                    //prints what color is (color at the 1th position)
