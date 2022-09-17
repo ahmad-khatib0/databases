@@ -1,0 +1,30 @@
+
+////////////////////////////// STREAMS  ///////////////////////////////////
+Kind of like a cross between a list and a sorted set
+Used for communication between different servers
+Most useful with 'consumer groups'
+
+
+XADD fruits * color red name strawberry                     //ad N count of key value to stream, * to create timestamp 
+XREAD STREAMS fruits 0-0                                    //Read all messages from the beginning of time
+XREAD STREAMS fruits 1650383447884-0                        //Read all messages after (but not including) this timestamp
+XREAD COUNT 2 STREAMS fruits 0-0                            //Read no more than 2 messages
+XREAD BLOCK 3000 STREAMS fruits 1663432331585-0             //If no messages are available, wait for 3000ms before returning
+XREAD COUNT 5 BLOCK 3000 STREAMS fruits $                   //Look for messages starting at the *current* time
+XRANGE fruits 1663433654796-0 1663433654799-0               // first time Look for messages starting at (AND INCLUDING) this time 
+// second time Look for messages up to (AND INCLUDING) this time
+XRANGE fruits (1663433654796-0 (1663433654799-0              // not including 
+XRANGE fruits -  (1663433654799-0                            // from past and  not including  (1663433654799-0                            
+XRANGE fruits 1663433654799-0  +                             // from past at this time till the future 
+
+
+CONSUMER GROUPS 
+XGROUP CREATE fruits fruits-group $ MKSTREAM                         // create 
+XGROUP CREATECONSUMER fruits fruits-group worker-2                   //create a consumer
+XINFO GROUPS fruits                                                  // list info about a stream  
+XINFO  CONSUMERS fruits fruits-group                                 // list workers inside this fruits-group 
+XREADGROUP GROUP fruits-group worker-1 COUNT 1 STREAMS fruits >     
+//STREAMS fruits >  means:   Only messages that were not delivered to any other consumer in this group
+XACK fruits fruits-group 10-0                                        //Acknowledge a message as being processed
+XAUTOCLAIM fruits fruits-group worker-2 10000 0-0                    //Claim messages that have been pending with other works for too long
+(10 seconds)  and Assign these pending messages to worker-2           
