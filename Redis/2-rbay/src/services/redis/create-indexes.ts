@@ -9,7 +9,16 @@ export const createIndexes = async () => {
 
 	return client.ft.create(
 		itemsIndexKey(),
-		{ name: { type: SchemaFieldTypes.TEXT }, description: { type: SchemaFieldTypes.TEXT } },
+		{
+			name: { type: SchemaFieldTypes.TEXT, SORTABLE: true },
+			description: { type: SchemaFieldTypes.TEXT, SORTABLE: false },
+			ownerId: { type: SchemaFieldTypes.TAG, SORTABLE: false },
+			endingAt: { type: SchemaFieldTypes.NUMERIC, SORTABLE: true },
+			bids: { type: SchemaFieldTypes.NUMERIC, SORTABLE: true },
+			views: { type: SchemaFieldTypes.NUMERIC, SORTABLE: true },
+			price: { type: SchemaFieldTypes.NUMERIC, SORTABLE: true },
+			likes: { type: SchemaFieldTypes.NUMERIC, SORTABLE: true }
+		} as any,
 		{ ON: 'HASH', PREFIX: itemsKey('') }
 	);
 };

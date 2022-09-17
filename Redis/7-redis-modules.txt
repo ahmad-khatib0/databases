@@ -6,6 +6,18 @@ PREFIX 2  cars# trucks#           // 2 is the number of prefixes
 SCHEMA name TEXT .....            //you don't have to list out all fields in this SCHEMA , just the ones you wanna search 
 FT._LIST                          // list existed indexes 
 
+@name:(chair) => { $weight: 5.0 } @description:(chair)
+Seeing 'chair' in a name is 5x more important than in a description
+
+(@name:(chair) => { $weight: 5.0 }) | (@description:(chair))
+Find names including chair and/or descriptions including chair
+
+FT.EXPLAINCLI idx:items 'chair -desk' 
+//explain your query 
+
+FT.PROFILE idx:items SEARCH QUERY '%chairs%' LIMIT  0 0 
+// benchmark the query performance 
+
 ///////////////////////symbols ///////////////////////////////////////////////
 @name:(fast)               //  Do a text search 'name' 
 @color:{red}               // Do a tag search on 'color'
