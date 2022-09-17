@@ -1,0 +1,52 @@
+//////////////////////////////      RediSearch Module  (aka package for searching ) ///////////////////
+FT.CREATE                         //create an index for searching all keys starting with particular string 
+FT.DROPINDEX idx:cars             // delete  
+ON HASH | JSON                    //index for searching hash or json structure 
+PREFIX 2  cars# trucks#           // 2 is the number of prefixes 
+SCHEMA name TEXT .....            //you don't have to list out all fields in this SCHEMA , just the ones you wanna search 
+FT._LIST                          // list existed indexes 
+
+///////////////////////symbols ///////////////////////////////////////////////
+@name:(fast)               //  Do a text search 'name' 
+@color:{red}               // Do a tag search on 'color'
+@year:[1955,1960]          // Do a numeric search on 'year'
+
+/////////////////// TYPES /////////////////////////////
+TEXT                   //Enables full text search for this field
+TAG                    //Field can only be searched for with an exact match
+NUMERIC                //Field contains a number
+GEO                    //Field contains geographic coordinates
+VECTOR                 //Helps with searching based on similarity
+
+
+////////////////////  tips cases ///////////////////////////
+Querying - Use Tag
+1- ID reference to another record
+2- Color of a product
+3- Country that a product is made in
+
+Searching - Use Text
+1- Product names
+2- Product descriptions
+3- Review of a product
+
+
+///////////////////// most important note /////////////////////////////////////
+All 'stop' words are removed from tag and text queries!!!
+@cities:{ to | a | or }      =>      @cities:{   }
+
+words are: 
+a,    is,    the,   an,   and,  are, as,  at,   be,   but,  by,   for, if,   in,    into,  it,
+no,   not, of,  on,   or,   such, that, their, then, there, these, they, this, to,  was, will, with
+
+All stop words, spaces, and punctuation are removed
+'a fast, fast car!!!!'       =>   [fast, fast, car]
+
+you can to use e.g 'fast'  instead of '@name:(fast)' with search text only (so without putting a field )
+
+F.SEARCH idx:cars '@name:(%dar%)'      /// A percent on either side, once again is not a wild card.
+// Instead, the percent means try to allow for a one character mismatch inside the string and any possible results.
+'@name:(%%daar%%)'      //allow tow mismatch, (max allowed is 3 character  ) 
+
+Add * to a string to do a prefix search    '@name:(fa*)'       //fast, far, fact, fawn, fantastic....     
+f* is not working, minimal is to have tow characters 
