@@ -1,0 +1,43 @@
+docker run --name pgstandby -v 
+/home/ahmad-khatib/Downloads/personal/Databases/Projects/Advanced/5-database-replication:/var/lib/postgresql/data 
+-e POSTGRES_PASSWORD=postgres -d -p:5433:5432 postgres:13
+
+then mv pstandby_data pstandby_data_bk
+cp -R pmaster_data pstandby_data
+
+we did a trick here, afte spinning the containers and generating data from volumes, we stop those instances, 
+and then  by copying  the master to the standby , we traked the other instance , so its reads almost the 
+same content, 
+
+#and then run both standby and master containers again  
+
+# go to pg_hba.conf in the root folder of master_data generated folder,
+  host replication postgres all md5      # at the end of the file 
+  
+# go to the standby_data generated folder, open  postgres.conf, look on primary_conninfo
+primary_conninfo = 'application_name=standby1 hostname=ip_of_the_master_container 
+port=5432 user=postgres password=postgres'
+get the ip address of the master container as follows =>  docker inspect pgmaster
+use that ipaddress and update your postgresql.conf on the standby with the ip address 
+of the master (in case docker can't resolve your hostname) 
+
+# stop the tow containers agains 
+# in the the standby_data folder create a file in the root named:  standby.signal 
+# this makes this instance a ready only instance and a strandby instance
+
+#go to master_data folder,  open the postgressql.conf file, search for synchronous_standby_names 
+synchronous_standby_names = 'first 2 (standby1,standby2,standby3)'   # or any instead of first
+# this means allow the commit (on master instance) as long as one at least one of these servers commit.
+
+#finaly , start the tow instances, and run, docker logs pmaster , you will see : 
+standby "standby1" is now a synchronous standby with priority 1 
+# look also to the standby docker instance,  you will see : 
+db system is ready to accept read only  connections, 
+started streaming WAL from primary at ............
+
+look also in master postgres instance : 
+select * from pg_stat_replication;     # will see  the currently streamers instances  
+
+so now everything we insert to the maste instance will be reflected in the standby instance 
+and if you tried to insert something to the replica instacne(standby) , it will fail, because its read only 
+
