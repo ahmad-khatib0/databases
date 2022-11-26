@@ -1,0 +1,12 @@
+go to vim  /var/lib/postgresql/data/postgresql.conf
+uncommint ssl and make on 
+ssl_cert_file = 'cert.pem'
+ssl_key_file = 'private.pem'
+inside the same data folder run to generate a certificate file 
+openssl req -x509 -newkey rsa:4096 -nodes -keyout private.pem -out cert.pem
+answer the questions 
+chmod 600 private.pme
+chown postgres private.pem
+exit from the container 
+docker stop pg 
+docker start pg 
