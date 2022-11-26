@@ -1,0 +1,18 @@
+declare c cursor for select id from grades where g between 90 and 100 ; 
+# declare a cursor pointer to be prepared for asking for data  
+fetch c ; 
+# each time you execute it ,it will fetch a row from this query in ordered manner, this is super fast 
+fetch last c ; 
+# get last entry, this is realy slow, because db needs to do a full table scan 
+
+# the advantage of using cursors is: 
+# 1- when working with a big amount of data, so instead of fetching milions rows and send them directly to
+# the user, you can to subsequent and chunk them, and after that send them piece by piece 
+# 2- streaming:  when you have a data streamer , so it can be realy useful to use a cursor 
+# 3- can be canceled 
+# 4- paging, but it isn't that easy to impelement it 
+
+# the disadvantages are: 
+# 1- its stateful, that means there is a memory alocated in the db for it  
+# 2- you will have a long transaction running, its not good for db, e,g they can't index probably 
+
