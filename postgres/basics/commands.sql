@@ -17,7 +17,16 @@ SELECT relname, relkind FROM pg_class where relkind = "i";
 SELECT * FROM pg_stats where tablename  = "users";
 
 -- list all reserved and unreserved keywords 
-SELECT * FROM pg_get_keywords()
+SELECT * FROM pg_get_keywords();
+
+-- SET the searching path schema piriority
+SET search_path TO test, public; 
+
+-- set the searching path schema to the default 
+SET search_path TO "$user", public; 
+
+-- SHOW what pg will select if there are more than one schema
+SHOW search_path; 
 
 -- List all index names, column names and its table name of the pg database
 SELECT 
