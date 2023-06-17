@@ -19,3 +19,8 @@ content-type: application/json
   "username": "Alyson156",
   "bio": "I am alyson"
 }
+
+###
+
+DELETE http://localhost:3005/users/2 HTTP/1.1
+content-type: application/json
