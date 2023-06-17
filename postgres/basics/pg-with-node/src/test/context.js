@@ -36,7 +36,7 @@ class Context {
     await migrate({
       schema: roleName,
       direction: 'up',
-      log: () => {},
+      log: () => { },
       noLock: true,
       dir: 'migrations',
       databaseUrl: {
@@ -62,6 +62,10 @@ class Context {
 
   constructor(roleName) {
     this.roleName = roleName;
+  }
+
+  async reset() {
+    return pool.query("DELETE FROM users;")
   }
 
   async close() {

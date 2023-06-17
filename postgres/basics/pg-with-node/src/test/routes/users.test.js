@@ -13,6 +13,10 @@ afterAll(() => {
   return context.close();
 });
 
+beforeEach(async () => {
+  await context.reset();
+})
+
 it('create a user', async () => {
   const startingCount = await UserRepo.count();
 
