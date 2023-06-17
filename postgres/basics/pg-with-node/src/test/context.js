@@ -3,19 +3,21 @@ const format = require('pg-format');
 const { default: migrate } = require('node-pg-migrate');
 const pool = require('../pool');
 
+const DEFAULT_OPTS = {
+  host: 'localhost',
+  port: 5432,
+  database: 'socialnetwork-test',
+  user: 'sg',
+  password: '',
+};
+
 class Context {
   static async build() {
     // Randomly generating a role name to connect to PG as
     const roleName = 'a' + randomBytes(4).toString('hex');
 
     // Connect to PG as usual
-    await pool.connect({
-      host: 'localhost',
-      port: 5432,
-      database: 'socialnetwork-test',
-      user: 'sg',
-      password: '',
-    });
+    await pool.connect(DEFAULT_OPTS);
 
     // Create a new role
     await pool.query(
@@ -60,6 +62,21 @@ class Context {
 
   constructor(roleName) {
     this.roleName = roleName;
+  }
+
+  async close() {
+    // Disconnect from PG
+    await pool.close();
+
+    // Reconnect as our root user
+    await pool.connect(DEFAULT_OPTS);
+
+    // Delete the role and schema we created
+    await pool.query(format('DROP SCHEMA %I CASCADE;', this.roleName));
+    await pool.query(format('DROP ROLE %I;', this.roleName));
+
+    // Disconnect
+    await pool.close();
   }
 }
 
