@@ -145,6 +145,7 @@ UPDATE purchases SET items_purchased =
   as int)
 WHERE id=2;
 
+-- this deletes an object from Carol's items_purchased (the 2th object)
 -- We used a a query to find the position in Carol’s items_purchased for productid=1.
     -- This returned ordinal position 2. Therefore we used position-1 to get array location 1.
 
@@ -208,14 +209,14 @@ UPDATE
     samples
 SET
     sample = 
-        jsonb_set( 
-            sample,
-            array['result', elem_index::text, 'ratingtext'],
-            '"some individual text"'::jsonb,
-            true
-          )
+        jsonb_set(
+          sample, 
+          array['result', elem_index::text, 'ratingtext'], 
+          '"some individual text"'::jsonb, 
+          true
+        )
 FROM (
-    SELEct 
+    SELECT 
         pos - 1 as elem_index
     FROM 
         samples, 

@@ -1,0 +1,22 @@
+
+╔═════════════════════════════════════════════════════════════════════════╗
+║ # SELECT * FROM  ( SELECT sal as salary, com as commission  FROM emp) x ║
+║ # WHERE salary > 5000;                                                  ║
+╚═════════════════════════════════════════════════════════════════════════╝
+
+In this simple example, you can avoid the inline view and reference COMM or SAL
+directly in the WHERE clause to achieve the same result. This solution introduces
+you to what you would need to do when attempting to reference any of the following in a WHERE clause:
+    • Aggregate functions
+    • Scalar subqueries
+    • Windowing functions
+    • Aliases
+Placing your query, the one giving aliases, in an inline view gives you the ability to
+reference the aliased columns in your outer query. Why do you need to do this? The
+WHERE clause is evaluated BEFORE the SELECT; thus, SALARY and COMMISSION
+do not yet exist when the “Problem” query’s WHERE clause is evaluated. Those
+aliases are not applied until after the WHERE clause processing is complete. How‐
+ever, the FROM clause is evaluated BEFORE the WHERE. By placing the original query
+in a FROM clause, the results from that query are generated BEFORE the outermos
+WHERE clause, and your outermost WHERE clause “sees” the alias names. This technique is particularly 
+useful when the columns in a table are not named particularly well.

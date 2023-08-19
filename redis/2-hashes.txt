@@ -5,6 +5,6 @@ HEXISTS  company age                               // key existed ? 1 not? 0
 HDEL  company age                                  //delete a key in hash ,,, DEL company delete the hash 
 HINCRBY  company age 10  or -10                    //inc or dec a number in hash list.. not existed ? will create it 
 HINCRBYFLOATE  company age 10.44  or -10.44        //inc or dec a floate in hash list.. not existed ? will create it 
-HSTRLEN  company name                              //get the length , not exisited ? return 0   
+HSTRLEN  company name                              //get the length , not existed ? return 0   
 HKEYS or HVALUES  company                          //get keys or values  
 
