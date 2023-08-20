@@ -68,3 +68,16 @@ The term correlated subquery is used because rows from the outer query are refer
       clause of your query. In the solution provided, the expression “1 = 0” in the predicate
       of the query causes no rows to be returned. The result is an empty table based on the
       columns in the SELECT clause of the query.
+
+
+
+
+╔═════════════════════════════════════════════════════════════════════════════════╗
+║ ******************************************************************************* ║
+║ ******************** Metadata Queries ***************************************** ║
+║ ******************************************************************************* ║
+╚═════════════════════════════════════════════════════════════════════════════════╝
+
+-- Oracle’s system views and DB2’s system tables are each vendor-specific. PostgreSQL, MySQL, and SQL Server, 
+   on the other hand, support something called the information schema, which is a set of views defined by the 
+   ISO SQL standard. That’s why the same query can work for all three of those databases.
