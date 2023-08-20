@@ -52,3 +52,19 @@ The term correlated subquery is used because rows from the outer query are refer
  ╚═══════════════════════════════════════════════════════════════════════════════════════════╝
 
  
+
+
+### create table dept_2 as select * from dept where 1 = 0;
+-- Oracle, MySQL, and PostgreSQL
+      When using Create Table As Select (CTAS), all rows from your query will be used to
+      populate the new table you are creating unless you specify a false condition in the
+      WHERE clause. In the solution provided, the expression “1 = 0” in the WHERE
+      clause of the query causes no rows to be returned. Thus, the result of the CTAS statement is 
+      an empty table based on the columns in the SELECT clause of the query.
+
+-- SQL Server
+      When using INTO to copy a table, all rows from your query will be used to populate
+      the new table you are creating unless you specify a false condition in the WHERE
+      clause of your query. In the solution provided, the expression “1 = 0” in the predicate
+      of the query causes no rows to be returned. The result is an empty table based on the
+      columns in the SELECT clause of the query.
