@@ -20,3 +20,35 @@ ever, the FROM clause is evaluated BEFORE the WHERE. By placing the original que
 in a FROM clause, the results from that query are generated BEFORE the outermos
 WHERE clause, and your outermost WHERE clause “sees” the alias names. This technique is particularly 
 useful when the columns in a table are not named particularly well.
+
+
+╔══════════════════════════════════════════════════════════════════════════════════════════════╗
+║ In SQL, “TRUE or NULL” is TRUE, but “FALSE or NULL” is NULL! You must keep this in mind when ║
+║ using IN predicates, and when performing logical OR evaluations and NULL values are involved.║
+╚══════════════════════════════════════════════════════════════════════════════════════════════╝
+To avoid the problem with NOT IN and NULLs, use a correlated subquery in conjunction with NOT EXISTS.
+The term correlated subquery is used because rows from the outer query are referenced in the subquery
+
+
+## a scalar subquery is a subquery placed in the SELECT list
+
+
+-- Generally, to avoid a Cartesian product, you would apply the n–1 rule where n represents the number
+    of tables in the FROM clause and n–1 represents the mini‐ mum number of joins necessary to avoid 
+    a Cartesian product. Depending on what the keys and join columns in your tables are, you may very 
+    well need more than n–1 joins, but n–1 is a good place to start when writing queries.
+
+
+-- You have to be careful when computing aggregates across joins. Typically when duplicates are 
+    returned due to a join, you can avoid miscalculations by aggregate functions in two ways: 
+    you can simply use the keyword DISTINCT in the call to the aggregate function, so only 
+    unique instances of each value are used in the computation; 
+    or you can perform the aggregation first (in an inline view) prior to joining, thus avoiding the incorrect 
+    computation by the aggregate function because the aggregate will already be computed before you even join.
+
+
+ ╔═══════════════════════════════════════════════════════════════════════════════════════════╗
+ ║ -- Use a full outer join to return missing data from both tables based on a common value. ║
+ ╚═══════════════════════════════════════════════════════════════════════════════════════════╝
+
+ 
