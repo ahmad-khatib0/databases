@@ -96,8 +96,8 @@ SELECT arr.item_object, arr.item_object->> 'price'
   WHERE id=2
   AND arr.item_object->>'price' = Cast(
       (
-            SELECT MAX(item_prices.price) as p
-            FROM purchases,jsonb_to_recordset(purchases.items_purchased) as item_prices(price int)
+            SELECT MAX(item_prices.price) as p FROM purchases,
+            jsonb_to_recordset(purchases.items_purchased) as item_prices(price int)
             WHERE id=2
       ) AS VARCHAR
     );

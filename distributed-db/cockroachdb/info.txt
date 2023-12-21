@@ -1,0 +1,330 @@
+CAP—or Brewer’s—theorem states that you can only have at most two of 
+  three desirable characteristics in a distributed system 
+
+Consistency
+  Every user sees the same view of the database state.
+
+Availability
+  The database remains available unless all elements of the distributed system fail.
+
+Partition tolerance
+  The system runs in an environment in which a network partition might divide
+  the distributed system in two, or if two nodes in the network cannot communi‐
+  cate. A partition-tolerant system will continue to operate despite an arbitrary
+  number of messages being dropped (or delayed) by the network between nodes. 
+  For instance, consider the case of a global ecommerce system with users in North
+  America and Europe. If the network between the two continents fails (a network partition), 
+  then you must choose one of the following outcomes: 
+  • Users in Europe and North America may see different versions of the database: sacrificing consistency.
+  • One of the two regions needs to shut down (or go read-only): sacrificing availability.
+  
+  Internet pioneers such as Amazon, however, believed that availability was more
+  important than strict consistency. Amazon developed a database system—Dynamo—
+  that implemented “eventual consistency.” In the event of a partition, all zones would
+  continue to have access to the system, but when the partition was resolved, inconsis‐
+  tencies would be reconciled—possibly losing data in the process.
+
+
+CockroachDB was designed to support the following attributes:
+
+Scalability
+  The CockroachDB distributed architecture allows a cluster to scale seamlessly as
+  workload increases or decreases. Nodes can be added to a cluster without any
+  manual rebalancing, and performance will scale predictably as the number of
+  nodes increases.
+  
+High availability
+  A CockroachDB cluster has no single point of failure. CockroachDB can con‐
+  tinue operating if a node, zone, or region fails without compromising availability.
+  
+Consistency
+  CockroachDB provides the highest practical level of transactional isolation and
+  consistency. Transactions operate independently of each other and, once com‐
+  mitted, transactions are guaranteed to be durable and visible to all sessions.
+  
+Performance
+  The CockroachDB architecture is designed to support low-latency and high-throughput 
+  transactional workloads. Every effort has been made to adopt database best practices 
+  with regard to indexing, caching, and other database optimization strategies.
+Geo-partitioning
+  CockroachDB allows data to be physically located in specific localities to
+  enhance performance for “localized” applications and to respect data sovereignty requirements.
+  
+Compatibility
+  CockroachDB implements ANSI-standard SQL and is wire-protocol compatible
+  with PostgreSQL. This means that the majority of database drivers and frame‐
+  works that work with PostgreSQL will also work with CockroachDB. Many PostgreSQL 
+  applications can be ported to CockroachDB without requiring significant coding changes.
+  
+Portability
+  CockroachDB is offered as a fully managed database service, which in many cases is the 
+  easiest and most cost-effective deployment mode. But it’s also capable of running on pretty 
+  much any platform you can imagine, from a developer’s laptop to a massive cloud deployment. 
+  The CockroachDB architecture is very well aligned with containerized deployment options, and 
+  in particular, with Kubernetes. CockroachDB provides a Kubernetes operator that eliminates much
+  of the complexity involved in a Kubernetes deployment.
+  
+You may be thinking, “This thing can do everything!” However, it’s worth pointing
+out that CockroachDB was not intended to be all things to all people. In particular:
+
+CockroachDB prioritizes consistency over availability
+  We saw earlier how the CAP theorem states that you have to choose either con‐
+  sistency or availability when faced with a network partition. Unlike “eventually”
+  consistent databases such as DynamoDB or Cassandra, CockroachDB guarantees
+  consistency at all costs. This means that there are circumstances in which a
+  CockroachDB node will refuse to service requests if it is cut off from its peers. A
+  Cassandra node in similar circumstances might accept a request even if there is a
+  chance that the data in the request will later have to be discarded.
+  
+The CockroachDB architecture prioritizes transactional workloads
+  CockroachDB includes the SQL constructs for issuing aggregations and the SQL
+  2003 analytic “windowing” functions, and CockroachDB is certainly capable of
+  integrating with popular business intelligence tools such as Tableau. There’s no
+  specific reason why CockroachDB could not be used for analytic applications.
+  However, the unique features of CockroachDB are targeted more at transactional
+  workloads. For analytic-only workloads that do not require transactions, other
+  database platforms might provide better performance.
+
+
+A CockroachDB deployment consists of one or more database server
+  processes. Each server has its own dedicated storage—the familiar “shared-nothing”
+  database cluster pattern. The nodes in a CockroachDB cluster are symmetrical—there
+  are no “special” or “primary” nodes. This storage is often directly attached to the
+  machine on which the CockroachDB server runs, though it’s also possible for that data to 
+  be physically located on a shared storage subsystem. Data is distributed across the cluster 
+  based on key ranges. Each range is replicated to at least three members of the cluster
+
+Under the hood, data in a CockroachDB table is organized in a key-value (KV) storage system. 
+  The key for the KV store is the table’s primary key. The value in the KV store is a binary 
+  representation of the values for all the columns in that row. Indexes are also stored in the KV 
+  system. In the case of a non-unique index, the key is the index key concatenated to the table’s 
+  primary key. In the case of a unique index, the key is the index key, with the primary key 
+  appearing as the corresponding value for that key. Ranges store contiguous spans of key-values. 
+  Ranges are analogous to shards or shard chunks in other databases
+
+leases are granted to a node giving it responsibility for managing reads and writes to a range. 
+  The node holding the lease is known as the leaseholder. The same node is generally also the Raft leader,
+  which is responsible for ensuring that replicas of the node are correctly maintained across multiple nodes. 
+
+Tables as Represented in the KV Store
+  Each entry in the KV store has a key based on the following structure:
+  /<tableID>/<indexID>/<IndexKeyValues>/<ColumnFamily>
+
+Table Definitions and Schema Changes
+  The schema definitions for tables (and their associated indexes) are stored in a special
+  keyspace called a table descriptor. For performance reasons, table descriptors are
+  replicated on every node. The table descriptor is used to parse and optimize SQL and
+  to correctly construct KV operations for a table.
+
+MVCC Principles
+  Like most transactional database systems, CockroachDB implements the multiver‐
+  sion concurrency control (MVCC) pattern. MVCC allows readers to obtain a consis‐
+  tent view of information, even while that information is being modified. Without
+  MVCC, consistent reads of a data item need to block (typically using a “read lock”)
+  simultaneous writes of that item and vice versa. With MVCC, readers can obtain a consistent 
+  view of information even while the information is being modified by a concurrent transaction.
+  
+  The CockroachDB implementation limits the ability of transactions to read from
+  previous versions. For instance, if a read transaction commences after a write transac‐
+  tion has begun, it may not be able to read the original version of the row because
+  it might be inconsistent with other data already read or that will be read later in
+  the transaction. This may result in the read transaction “blocking” until the write
+  transaction commits or aborts.
+
+Write Intents
+  During the initial stages of transaction processing, when it is not yet known whether
+  the transaction will succeed, the leaseholder writes tentative modifications to modified 
+  values known as write intents. Write intents are specially constructed MVCC- compliant versions 
+  of the records, which are marked as provisional. They serve both as tentative transaction 
+  outcomes and as locks that prevent any concurrent attempts to update the same record.
+
+Transaction record will record the transaction state as one of the following:
+PENDING
+  Indicates that the write intent’s transaction is still in progress.
+STAGING
+  All transaction writes have been performed, but the transaction is not yet guaranteed to commit.
+COMMITTED
+  The transaction has been successfully completed.
+ABORTED
+  Indicates that the transaction was aborted and its values should be discarded.
+
+Parallel Commits
+  In a distributed database, the number of network round trips is often the dominant
+  factor in latency. In general, committing a distributed transaction requires at least
+  two round trips (indeed, one of the classic algorithms for this is called Two-Phase Commit). 
+  CockroachDB uses an innovative protocol called Parallel Commits to hide
+  one of these round trips from the latency as perceived by the client.
+  
+The TxnWaitQueue object tracks the transactions that are waiting and the transactions
+  that they are waiting on. This structure is maintained within the Raft leader of the
+  range associated with the transaction. When a transaction commits or aborts, the
+  TxnWaitQueue is updated, and any waiting transactions are notified.
+
+Transaction conflicts can also occur between readers and writers. If a reader encoun‐
+  ters an uncommitted write intent that has a lower (e.g., earlier) timestamp than the
+  consistent read timestamp for the read, then a consistent read cannot be completed.
+  This can happen if a modification occurs between the time a read transaction starts
+  and the time it attempts to read the key concerned. In this case, the read will need to
+  wait until the write either commits or aborts.
+These “blocked reads” can be avoided in the following circumstances:
+• If the read has a high priority, CockroachDB may “push” the lower-priority
+  write’s timestamp to a higher value, allowing the read to complete. The “pushed”
+  transaction may need to restart if the push invalidates any previous work in the transaction.
+• Stale reads that use AS OF SYSTEM TIME will not block 
+  (as long as the transaction does not exceed the specified staleness). 
+• In multiregion configurations. GLOBAL tables use a modified transaction protocol 
+  in which reads are not blocked by writes.
+
+
+The CockroachDB Distribution Layer
+  Logically, a table is represented in CockroachDB as a monolithic KV structure, in which the key 
+  is a concatenation of the primary keys of the table, and the value is a concatenation of all of 
+  the remaining columns in the table. The distribution layer breaks this monolithic structure into contiguous chunks of
+  approximately 512 MB. The 512 MB chunk size is sized to keep the number of ranges per node manageable. 
+  The distribution layer keeps data distributed evenly across the cluster while simultaneously 
+  presenting a unified and consolidated view of that data to the applications that need it.
+
+
+Gossip
+  CockroachDB uses the gossip protocol to share ephemeral information between nodes. Gossip is 
+  a widely used protocol in distributed systems in which nodes propagate information virally 
+  through the network. Gossip maintains an eventually consistent KV map maintained on all the Cock‐
+  roachDB nodes. It is used primarily for bootstrapping: it contains a “meta0” record
+  that tells the cluster where the meta1 range can be found, as well as mappings
+  from the node IDs stored in meta records to network addresses. Gossip is also used
+  for certain operations that do not require strong consistency, such as maintaining
+  information about the available storage space on each node for rebalancing purposes.
+
+Leaseholders
+  The leaseholder is the CockroachDB node responsible for serving reads and coordinating writes 
+  for a specific range of keys.. When a transaction coordinator or gateway node wants to initiate 
+  a read or write against a range, it finds that range’s leaseholder (using the meta ranges ) 
+  and forwards the request to the leaseholder.
+
+Range Splits
+  CockroachDB will attempt to keep a range at less than 512 MB. When a range exceeds that size, 
+  the range will be split into two smaller contiguous ranges. Ranges can also be split if they 
+  exceed a load threshold. If the parameter kv.range_split.by_load_enabled is true and the number 
+  of queries per second to the range exceeds the value of kv.range_split.load_qps_threshold, 
+  then a range may be split even if it is below the normal size threshold for range splitting. Other
+  factors will determine if a split actually occurs, including whether the resulting split
+  would actually split the load between the two new ranges and the impact on queries
+  that might now have to span the new ranges.
+
+
+CockroachDB supports a multiregion configuration that controls how data should be 
+  distributed across regions. The following core concepts are relevant:
+• Cluster regions are geographic regions that a user specifies at 
+  node start time. • Regions may have multiple zones.
+• Databases within the cluster are assigned to one or more regions: 
+  one of these regions is the primary region.
+• Tables within a database may have specific locality rules (global, regional by table,
+  regional by row), which determine how its data will be distributed across zones.
+• Survival goals dictate how many simultaneous failures a database can survive.
+
+
+The two most commonly used high-availability designs are:
+• Active-passive, in which a single node is a “primary” or “active” node whose
+  changes are propagated to passive “secondary” or “passive” nodes.
+• Active-active, in which all nodes run identical services. Typically, active-active
+  database systems are of the “eventually consistent” variety. Since there is no
+  “primary,” conflicting updates can be processed by different nodes. These will
+  need to be resolved, possibly by discarding one of the conflicting updates.
+CockroachDB implements a distributed consensus mechanism that is called multi-
+  active. Like active-active, all replicas can handle traffic, but for an update to be
+  accepted, it must be confirmed by a majority of voting replicas.
+Not all replicas necessarily get a vote. Nonvoting replicas are useful in globally
+  distributed systems since they allow for low latency reads in remote regions without
+  requiring that region to participate in consensus during
+
+Raft
+  CockroachDB employs the widely used Raft protocol as its distributed consensus
+  mechanism. In CockroachDB, each range is a distinct Raft group—the consensus for
+  each range is determined independently of other ranges.
+
+As of CockroachDB version 20, CockroachDB uses the PebbleDB storage engine an open source KV 
+  store inspired by the LevelDB and RocksDB storage engines. PebbleDB is primarily 
+  maintained by the CockroachDB team and is optimized specifically for CockroachDB 
+  use cases. Older versions of CockroachDB use the RocksDB storage engine.
+
+Log-Structured Merge Trees
+  PebbleDB implements the log-structured merge (LSM) tree architecture. LSM is a
+  widely implemented and battle-tested architecture that seeks to optimize storage
+  and support extremely high insert rates, while still supporting efficient random read access.
+  The simplest possible LSM tree consists of two indexed “trees:”
+• An in-memory tree that is the recipient of all new record inserts—the MemTable.
+• A number of on-disk trees represent copies of in-memory trees that have been
+  flushed to disk. These are referred to as sorted strings tables (SSTables).
+
+SSTables exist at multiple levels, numbered L0 to L6 (L6 is also called the base level). 
+  L0 contains an unordered set of SSTables, each of which is simply a copy of an in-memory 
+  MemTable that has been flushed to disk. Periodically, SSTables are compacted into larger 
+  consolidated stores in the lower levels. In levels other than L0, SSTables are ordered and 
+  nonoverlapping so that only one SSTable per level could possibly hold a given key.
+
+Of course, if a node fails while data is in the in-memory store, then it could be lost.
+  For this reason, database implementations of the LSM pattern include a WAL that
+  persists transactions to disk. The WAL is written via fast sequential writes.
+
+LSM writes: Writes from higher CockroachDB layers are first applied to the WAL (1) and 
+  then to the MemTable (2). Once the MemTable reaches a certain size, it is flushed to 
+  disk to create a new SSTable (3). Once the flush completes, WAL records may be purged (4). 
+  Multiple SSTables are routinely merged (compacted) into larger SSTables (5).
+  The compaction process results in multiple “levels”—Level 0 (L0) contains the uncompacted data. 
+  Each compaction creates a file at a deeper level—up to 7 levels (L0–L6) are typical.
+
+To reduce the overhead of multiple index lookups, Bloom filters are used to reduce the
+  number of lookups that must be performed. A Bloom filter is a compact and quick-to-maintain 
+  structure that can quickly tell you if a given SSTable “might” contain a
+  value. CockroachDB uses Bloom filters to quickly determine which SSTables have a
+  version of a key. Bloom filters are compact enough to fit in memory and are quick
+  to navigate. However, to achieve this compression, Bloom filters are “fuzzy” and may
+  return false positives. If you get a positive result from a Bloom filter, it means only
+  that the file may contain the value. However, the Bloom filter will never incorrectly
+  advise you that a value is not present. So, if a Bloom filter tells us that a key is not
+  included in a specific SSTable, then we can safely omit that SSTable from our lookup
+
+CockroachDB encodes the MVCC timestamp into each key so that multiple MVCC
+  versions of a key are stored as distinct keys within PebbleDB. However, the Bloom
+  filters that we introduced previously exclude the MVCC timestamp so that a query
+  does not need to know the exact timestamp to look up a record. CockroachDB removes records 
+  older than the configuration variable gc.ttlseconds, but will not remove any records covered 
+  by protected timestamps. Protected timestamps are created by long-running jobs such as backups, 
+  which need to be able to obtain a consistent view of data.
+
+The Block Cache
+  PebbleDB implements a block cache providing fast access to frequently accessed data items. 
+  This block cache is separate from the in-memory indexes, Bloom filters, and MemTables. The block 
+  cache operates on a least recently used (LRU) basis—when a new data entry is added to the cache,
+  the entry that was least recently accessed will be evicted from the cache.
+
+
+At a cluster level, a CockroachDB deployment consists of three or more symmetrical
+  nodes, each of which carries a complete copy of the CockroachDB software stack and
+  each of which can service any database client requests. Data in a CockroachDB table
+  is broken up into ranges of 512 MB in size and distributed across the nodes of the
+  cluster. Each range is replicated at least three times.
+  
+The CockroachDB software stack consists of five major layers:
+• The SQL layer accepts SQL requests in the PostgreSQL wire protocol. It parses and optimizes 
+  the SQL requests and translates the requests into KV operations that can be processed by lower layers.
+• The transaction layer is responsible for ensuring ACID transactions and serializable 
+  isolation. It ensures that transactions see a consistent view of data and that
+  modifications occur as if they had been executed one at a time.
+• The distribution layer is responsible for the partitioning of data into ranges and
+  the distribution of those ranges across the cluster. It is responsible for managing
+  Range leases and assigning leaseholders.
+• The replication layer ensures that data is correctly replicated across the cluster to
+  allow high availability in the event of a node failure. It implements a distributed
+  consensus mechanism to ensure that all nodes agree on the current state of any data item.
+• The storage layer is responsible for the persistence of data to local disk and the
+  processing of low-level queries and updates on that data.
+
+
+
+
+
+
+
+
+

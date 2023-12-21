@@ -1,2 +1,3 @@
 node_modules
 tags
+distributed-db/cockroachdb/ch3-overview/cockroach-data

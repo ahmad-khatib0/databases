@@ -1,0 +1,60 @@
+
+Creating a Kubernetes Cluster
+# The first step is to deploy the operator, and its manifest:
+
+$ kubectl apply -f https://cockroa.ch/crdbclusters_yaml
+$ kubectl apply -f https://cockroa.ch/operator_yaml
+$ kubectl config set-context --current --namespace=cockroach-operator-system
+$ curl -O https://cockroa.ch/example_yaml -o example.yaml
+$ kubectl apply -f example.yaml
+
+
+
+Adding Some Testing Data
+  cockroach workload init startrek "postgres://root@localhost:26257?sslmode=disable"
+  cockroach workload init bank "postgres://root@localhost:26257?sslmode=disable"
+
+# run a workload simulation for 60 seconds:
+  cockroach workload run bank "postgres://root@localhost:26257?sslmode=disable" --duration 60s
+  ( The run command is primarily meant to generate data for load testing purposes 
+    but is useful to generate data for query purposes as wel)
+
+# Starting a Local Single-Node Server
+$ cockroach start-single-node --insecure --listen-addr=localhost
+
+# To connect to this local Single-Node: 
+$ cockroach sql --insecure
+
+
+# using docker 
+
+$ docker volume create crdb1
+$ docker run -d --name=crdb1 \ 
+  --hostname=crdb1 -p 26257:26257 \ 
+  -p 8080:8080 -v "crdb1:/cockroach/cockroach-data" \ 
+  cockroachdb/cockroach:latest start-single-node --insecure
+     
+$ docker exec -it CONTAINER_ID cockroach sql --insecure
+
+
+
+
+
+
+use startrek;
+show tables;
+\d quotes; -- describe a table
+
+
+
+
+
+
+
+
+
+
+
+
+
+

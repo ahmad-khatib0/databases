@@ -81,3 +81,19 @@ The term correlated subquery is used because rows from the outer query are refer
 -- Oracle’s system views and DB2’s system tables are each vendor-specific. PostgreSQL, MySQL, and SQL Server, 
    on the other hand, support something called the information schema, which is a set of views defined by the 
    ISO SQL standard. That’s why the same query can work for all three of those databases.
+
+
+
+
+
+
+╔═════════════════════════════════════════════════════════════════════════════════╗
+║ ******************************************************************************* ║
+║ *********************************** Strings *********************************** ║
+║ ******************************************************************************* ║
+╚═════════════════════════════════════════════════════════════════════════════════╝
+Unfortunately, SQL does not make this easy. Because there is limited loop functionality in SQL,
+you need to mimic a loop to traverse a string. We call this operation 
+“walking a string” or “walking through a string,”
+
+
