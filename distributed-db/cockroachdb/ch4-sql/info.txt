@@ -1,0 +1,88 @@
+-- DROP CASCADE and Foreign Keys
+   DROP TABLE...CASCADE will drop any foreign key constraints that reference the table but
+   will not drop the tables or rows that contain those foreign keys. The end result will be
+   “dangling” references in these tables.
+   Because of this incompleteness, and because it can be hard to be certain exactly what
+   CASCADE will do, it’s usually better to manually remove all dependencies on a table
+   before dropping it.
+
+-- The ->> and @> operators can have different performance characteristics. In particular, 
+   ->> might exploit an inverted index where @> would use a table scan.
+   We can interrogate the structure of the JSON document using the jsonb_each and
+   jsonb_object_keys functions. jsonb_each returns one row per attribute in the JSON
+   document, while jsonb_object_keys returns just the attribute keys. This is useful if
+   you don’t know what is stored inside the JSONB column.
+
+
+If you think of a view as a stored query, then a
+  materialized view can be thought of as a stored result
+
+The ON CONFLICT clause allows you to control what happens if an INSERT violates a uniqueness 
+  constraint Without an ON CONFLICT clause, a uniqueness constraint violation will cause 
+  the entire INSERT statement to abort. DO NOTHING allows the INSERT statement as a whole 
+  to succeed but ignores any inserts that violate the uniqueness clause. The DO UPDATE clause
+  allows you to specify an UPDATE statement that executes instead of the INSERT. The DO
+  UPDATE functionality is similar in functionality to the UPSERT statement 
+
+
+-- IMPORT/IMPORT INTO
+-- The IMPORT statement imports the following types of data into CockroachDB:
+-- • Avro
+-- • Comma Separated Values (CSV)/Tab Separated Values (TSV)
+-- • Postgres dump files
+-- • MySQL dump files
+-- • CockroachDB dump files
+-- IMPORT creates a new table, while IMPORT INTO allows an import into an existing table.
+-- The files to be imported should exist either in a cloud storage bucket—Google Cloud
+-- Storage, Amazon S3, or Azure Blob storage—from an HTTP address or from the
+-- local filesystem (“nodelocal”).
+
+
+Transaction: 
+
+PRIORITY sets the transaction priority. In the event of a conflict, 
+  HIGH priority transactions are less likely to be retried.
+
+AS OF SYSTEM TIME allows a READ ONLY transaction to view data from a snapshot of 
+  database history.. The AS OF SYSTEM TIME clause can be applied to SELECT and 
+  BEGIN TRANSACTION statements as well as in BACKUP and RESTORE operations. 
+  AS OF SYSTEM TIME specifies that a SELECT statement or all the statements in a 
+  READ ONLY transaction should execute on a snapshot of the database at that system time. 
+  These snapshots are made available by the MVCC architecture 
+  
+
+SAVEPOINT creates a named rollback point that can be used as the target of a ROLLBACK
+  statement. This allows a portion of a transaction to be discarded without discarding
+  all of the transaction’s work,
+
+The following example, the insert of the misspelled number tree is
+  rolled back and corrected without abandoning the transaction as a whole:
+BEGIN ;
+INSERT INTO numbers VALUES(1,'one');
+INSERT INTO numbers VALUES(2,'two');
+SAVEPOINT two;
+INSERT INTO numbers VALUES(3,'tree');
+ROLLBACK TO SAVEPOINT two;
+INSERT INTO numbers VALUES(3,'three');
+COMMIT;
+
+
+SELECT FOR UPDATE
+  The FOR UPDATE clause of a SELECT statement locks the rows returned by a query,
+  ensuring that they cannot be modified by another transaction between the time they
+  are read and when the transaction ends. This is typically used to implement the
+  pessimistic locking pattern A FOR UPDATE query should be executed within a transaction. 
+  Otherwise, the locks are released on completion of the SELECT statement.
+  A FOR UPDATE issued within a transaction will, by default, block other FOR UPDATE
+  statements on the same rows or other transactions that seek to update those rows
+  from completing until a COMMIT or ROLLBACK is issued. However, if a higher-priority
+  transaction attempts to update the rows or attempts to issue a FOR UPDATE, then the
+  lower-priority transaction will be aborted and will need to retry.
+
+
+
+
+
+
+
+
