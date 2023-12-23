@@ -1,0 +1,263 @@
+
+Normalization
+  A normalized data model is one in which any data redundancy has been elimina‐
+  ted and in which all data is completely identifiable by primary and foreign keys.
+  Although the normalized data model is rarely the final destination from a perfor‐
+  mance point of view, the normalized data model is almost always the best initial
+  representation of a schema because it minimizes redundancy and ambiguity.
+
+The third normal form requires that each relation have a primary key. Yet, it does
+  not specify whether that key should be natural or artificial. A natural key is one
+  constructed from unique attributes that normally occur within the entity. An artificial
+  key is one that contains no meaningful column information and which exists only to
+  uniquely identify the row. There is a continual debate within the database community
+  regarding the merits of “artificial” primary keys versus the “natural” key.
+  CockroachDB will create an artificial key automatically if an explicit key is not provided.
+For example, suppose we decided that a user’s email address could serve as a primary
+  key. The email address is unique to the user, so it’s a perfectly valid key. However,
+  users can change their email addresses. If that happens, then the update to the users’
+  data will require not just an update in place to the row but also a relocation of the
+  data within the cluster. Any foreign keys pointing to the email address key will also
+  have to be updated and will also have to be relocated.
+
+Data warehousing designs
+  These models, such as the star and snowflake schemas, have a large central “fact” table 
+  with foreign keys to multiple “dimension” tables. CockroachDB is not primarily intended 
+  as a data warehousing database, so these models are not typical of a CockroachDB deployment.
+Time-series designs
+  In these models, the time of origin of data is part of each data element’s key and
+  data accumulates primarily as continual inserts..
+
+
+Other changes are driven by workload considerations. For instance, if a table is only
+  ever accessed in a JOIN with another table, we might replicate some columns from the
+  second table into the first to avoid the join. The other primary physical design drivers 
+  are the capabilities and performance characteristics of the database engine. For instance, 
+  in CockroachDB, ascending primary keys cause hotspots on certain nodes and should be avoided, 
+  while in a nondistributed SQL database such as PostgreSQL, ascending keys are fine.
+
+Entities to Tables
+  The major output of the logical design process are entities, attributes, and keys. To convert the 
+  logical model to a physical model, we need to convert entities to tables and attributes to columns.
+
+In some systems, the use of NULLs in indexed columns is discouraged, and it is
+  recommended to use NOT NULL with a DEFAULT value. This is because, in some data‐
+  bases (PostgreSQL, for instance), NULL values are not included in indexes. However,
+  CockroachDB does store NULL values in indexes, and you can use an index to evaluate
+  an IS NULL condition within a WHERE clause.
+
+
+CockroachDB data types generally map easily to logical data types. Consider the following:
+• All these CockroachDB string data types are equivalent: TEXT, CHAR, VARCHAR,
+  CHARACTER VARYING and STRING.
+• All of the integer data types—INT, INT2, INT4, INT8, BIGINT, SMALLINT, etc.—are
+  stored in the same manner in the database. A BIGINT and a SMALLINT consume
+  the same storage (providing they hold the same value). The types serve to con‐
+  strain only the ranges of values that can be stored. The INT type can hold any
+  allowable integer value (a 64-bit signed integer).
+• Similarly, FLOAT, FLOAT4, FLOAT8, and REAL data types all store 64-bit signed
+  floating-point numbers.
+• DECIMAL stores exact fixed-point numbers and should be used when it’s important
+  to preserve precision, such as for monetary values.
+• BYTES, BYTEA, and BLOB store binary strings of variable length. The data is stored
+  in line with other row data, and therefore, this data type is not suitable for very
+  large objects (a maximum of 1 MB is suggested).
+• TIME stores a time value in UTC, while TIMETZ stores a time value with a time zone offset   
+  from UTZ. TIMESTAMP and TIMESTAMPZ are similar but include both date and time in the value.
+
+
+In CockroachDB, the SERIAL data type by default generates unique identifiers using the unique_rowid() 
+  function. unique_rowid() generates unique numbers that combine nodeid and timestamp. Although the 
+  numbers are generally ascending, the order is not absolutely guaranteed, so large gaps will occur 
+  and “hotspots” are still possible. You can change the behavior of SERIAL to a more PostgreSQL-compatible 
+  behavior using the session variable serial_normalization. However, as with PostgreSQL, gaps in sequence 
+  numbers generated in this manner may still occur, and the performance overhead is significant. The CockroachDB 
+  team recommends against using SERIAL data types unless compatibility with PostgreSQL is required.
+
+
+Avoiding hotspots with a composite key
+  It may be that your application really requires a monotonically increasing key-value.
+  One way to avoid a hotspot, in this case, is to create a composite primary key that
+  leads with a nonmonotonically increasing value. For instance, in this implementation,
+  the customerid is prefixed to the order number in the primary key:
+  
+CREATE TABLE orders (
+  orderid INT NOT NULL DEFAULT nextval('order_seq'),
+  customerid INT NOT NULL,
+  salespersonid INT NULL,
+  PRIMARY KEY (customerid,orderid)
+);
+
+This implementation tends to send orders for a specific customer into the same ranges, but sequential 
+  orders from multiple customers should be distributed across the cluster. There may be some upside 
+  in “clustering” customer data this way, but the clear downside is that we now need to know the 
+  customer ID when searching for an order. We’ve probably all experienced the irritation of having 
+  to provide both a customer identifier and an order identifier to a sales associate, so this 
+  downside is potentially significant. Of course, we could create a secondary index just on 
+  orderid, but then we’d create a secondary index with a hotspot.
+
+
+Gaps in Sequential Keys
+  Although sequences provide for guaranteed ascending key-values, they cannot guarantee that there 
+  will be no missing values in the ordered sequence. For performance reasons, sequence number 
+  increments are not within the scope of an application transaction. Therefore, if a transaction 
+  issues a ROLLBACK after a sequence number is consumed, that number is lost. To achieve anything 
+  like scalable distributed performance, you would use the CACHE option to give each node its own 
+  unique set of ranges—which will result in keys being inserted out of order across nodes.
+  Furthermore, cached sequence numbers may be lost on a cluster restart.
+  If an application needs absolutely gap-free numbers (“no missing orders,” for
+  instance), then the application will need to implement its own sequence-generating
+  logic. Balancing performance and functionality, in this case, is not trivial
+
+
+It’s possible to greatly improve the performance of sequences by creating them with
+  the CACHE option. This avoids the blocking wait involved in acquiring the “next”
+  sequence number. However, in a distributed system like CockroachDB, using CACHE
+  defeats the purpose of the sequence generator. Because each node in the cluster has
+  its own cache, sequence numbers will be generated out of order across the cluster as a whole.
+
+
+
+it’s worth pointing out that document databases do offer significant conveniences for the developer:
+• Modern object-oriented programming practices involve the creation of complex “objects” that have 
+  an internal structure that allows for nesting and repeating groups. These program objects are 
+  typically highly denormalized and, when stored in an RDBMS, must be unpacked. Object-oriented 
+  programmers used to say, “A relational database is like a garage that forces you to take your car 
+  apart and store the pieces in little drawers.” In contrast, a document database allows the objects 
+  to be stored directly.
+  
+• JSON allows for the data model to evolve dynamically. For instance, an application can 
+  store responses from IoT devices over a REST interface without having a
+  preconceived notion of how those responses are structured.
+  
+• Modern DevOps practices involve continuous integration in which the entire application can be built 
+  directly from code and tested upon any significant change. RDBMS makes this difficult because a 
+  code change and a database change will need to be coordinated—ALTER TABLE statements and code 
+  commits need to be synchronously applied. Document databases avoid this issue.
+
+
+Index Selectivity
+  The selectivity of a column or group of columns is a common measure of the
+  usefulness of an index on those columns. Columns or indexes are selective if they
+  have a large number of unique values and few duplicate values. For instance, a
+  Date_of_birth column will be quite selective, while a Gender column will not be at all 
+  selective. Selective indexes are more efficient than nonselective indexes because they point
+  more directly to specific values. The CockroachDB optimizer will determine the selectivity 
+  of the various indexes available to it and will generally try to use the most selective index.
+
+A noncovering index—one that includes the filter conditions but not all the columns
+  in the SELECT list—is generally effective only when we are retrieving a small percentage 
+  of a table’s data. Beyond that, the overhead of going backward and forward from
+  index to base table will be slower than simply reading all the rows in the table.
+
+When we create a covering index using the STORING clause, the situation is
+  very different; in this case, the index can outperform the table access even if large
+  proportions of data are accessed. It is true that adding columns to the index using the
+  STORING clause will increase the overhead of index maintenance, but most of the time,
+  the improvement in query performance will be greater than the increase in write overhead.
+
+
+Let’s say we have time-series data where a measurement (say a temperature) was recorded 
+  every minute over the past year. The application is often asked to determine the average 
+  measurement over some recent time period. The query looks something like this:
+
+  SELECT AVG(measurement) FROM timeseries_data
+  WHERE measurement_timestamp > ((date '20220101')- INTERVAL '$dayFilter days');
+  
+The variable $dayFilter can take low or high values. We can create a 
+noncovering index on the table as follows:
+
+  CREATE INDEX timeseries_timestamp_i1
+  ON timeseries_data(measurement_timestamp);
+
+
+However, this index will be effective only when the number of days selected is very small—probably 
+less than a week. Alternatively, we could create a covering index that includes the measurement column:
+
+  CREATE INDEX timeseries_covering
+  ON timeseries_data(measurement_timestamp) STORING (measurement);
+  
+This index can be used effectively for any span of data—from one day to the entire year’s data.
+
+
+• The optimizer switches from an index scan to table scan when the amount of
+  data hits about 10% to 15% of the total. The optimizer is a sophisticated piece of software, 
+  but it isn’t magic, and it can’t always work out which access path is better. 
+  In some circumstances, creating a noncovering index will actually degrade performance.
+• A covering index is far superior in performance to a noncovering index and can be used effectively 
+  even if all or most of the table is being accessed. Whenever possible, use a covering index.
+• Remember that in CockroachDB, indexes and tables have the same storage
+  format: a covering index is not just a fast access mechanism—it’s also a compact representation 
+  of a subset of table columns that can be scanned far faster than the base table.
+
+The following guidelines might help when deciding which indexes to create:
+• Create composite indexes for columns that appear together in the WHERE clause.
+• If columns sometimes appear on their own in a WHERE clause, place them at the start of the index.
+• The more selective a column is, the more useful it will be at the leading end of the index.
+• A composite index is more useful if it also supports queries where not all
+  columns are specified. For instance, lastname, firstname is more useful than
+  firstname, lastname because queries against only lastname are more likely to
+  occur than queries against only firstname.
+
+
+Partial Indexes
+  A partial index can be created on only a subset of rows in the table. A partial index is
+  created by adding a WHERE clause to the CREATE INDEX statement.
+  Partial indexes can have a lower maintenance overhead, require less storage in the database, 
+  and be more efficient for suitable queries. They are, therefore, a very useful type of index.
+  The key limitation with a partial index is that it can be used only when CockroachDB
+  can be certain that the partial index contains all the necessary entries to satisfy the
+  query. In practice, this means that a partial index is normally used to optimize queries
+  that contain the same WHERE clause filter condition that was included in the index definition.
+
+
+Sort-Optimizing Indexes
+  Indexes can be used to optimize ORDER BY operations in certain circumstances. When
+  CockroachDB is asked to return data in sorted order, it must retrieve all the rows to
+  be sorted and perform a sort operation on those rows before returning any of the
+  data. However, if an index exists on the ORDER BY columns, then CockroachDB can
+  read the index and retrieve the rows directly from the index in sorted order.
+  Using the index to retrieve data in sorted order is usually only worthwhile if you are
+  optimizing for some small number of “top” rows. If you read the entire table in sorted
+  order from the index, then you’ll be reading all the index entries as well as all the
+  table entries, and the total number of I/O operations will be excessive. However, if
+  you are just getting the first “page” of data or a “top 10,” then the index will be much
+  faster since you never have to read the rest of the table rows at all.
+  However, if the index contains all the columns you need in the output—either
+  because it indexes all those columns or is using STORING on the others—then you get
+  the best of both worlds—you can retrieve all rows efficiently in sorted order.
+
+
+Expression Indexes
+  Expression indexes allow us to create an index on an expression rather than a column name. 
+  It’s similar in effect to creating a COMPUTED column and then creating an index on that column.
+  For instance, we could create an index on a lowercased version of the user’s name:
+  
+CREATE INDEX lower_users_ix ON users (LOWER(name))
+
+Such an index would be able to optimize queries that ignored case by 
+using the LOWER function in the query:
+
+SELECT * FROM users WHERE name=LOWER('Guy');
+
+
+Spatial Indexes
+  A spatial index is a special type of inverted index that supports operations 
+  on the GEOMETRY and GEOGRAPHY two-dimensional spatial data types.
+  To create a spatial index, we add the USING GIST(geom) clause:
+
+CREATE INDEX geom_idx_1 ON some_spatial_table USING GIST(geom);
+
+We can further fine-tune the index using various spatial index tuning parameters:
+
+CREATE INDEX geom_idx_1 ON geo_table1 USING GIST(geom) WITH (s2_level_mod = 3);
+CREATE INDEX geom_idx_2 ON geo_table2 USING GIST(geom) WITH (geometry_min_x = 0, s2_max_level=15)
+CREATE INDEX geom_idx_3 ON geo_table3 USING GIST(geom) WITH (s2_max_level=10)
+CREATE INDEX geom_idx_4 ON geo_table4 USING GIST(geom) WITH (geometry_min_x=0, s2_max_level=15);
+
+
+
+
+
+
+
