@@ -38,6 +38,47 @@ $ docker exec -it CONTAINER_ID cockroach sql --insecure
 
 
 
+The cockroach userfile upload command allows you to copy a file to cluster
+  storage. The file will be accessible only to the user who uploaded the file:
+$ cockroach userfile upload employees.csv employees.csv --url $CRDB_CLUSTER
+
+Nodelocal storage is similar to userfile storage but loads the file to just one of the nodes of 
+  the cluster. It is less secure than userfile storage—since it can be accessed from any 
+  CockroachDB database account—and less robust since an IMPORT from userfile storage can survive 
+  a node failure. On the other hand, a nodelocal upload is somewhat faster to execute.
+  The cockroach nodelocal upload command uploads a file to nodelocal storage:
+$ cockroach nodelocal upload employees.csv employees.csv --url $CRDB_LOCAL
+
+
+In this example, we create a Google Cloud Storage bucket and upload a CSV file to
+  that location. The example assumes that we are already logged in to Google Cloud: 
+  
+$ ~ gsutil mb gs://cockroachdefinitiveguide
+  Creating gs://cockroachdefinitiveguide/...
+$ gsutil cp employees.csv gs://cockroachdefinitiveguide
+  Copying file://employees.csv [Content-Type=text/csv]...
+  / [1 files][ 8.8 KiB/ 8.8 KiB]
+  Operation completed over 1 objects/8.8 KiB.
+$ gsutil ls gs://cockroachdefinitiveguide/
+  gs://cockroachdefinitiveguide/employees.csv
+
+Importing from userfile storage: Here’s an example of IMPORT INTO, loading data into a new table 
+  and loading data from the userfile location that we created in the previous step.
+  
+First, we upload the CSV file:
+$ cockroach userfile upload departments.csv departments.csv --url $CRDB_CLUSTER
+
+Then we create the table and import the data:
+
+$ CREAT TABLE ....
+
+$ IMPORT INTO departments ( department_id,department_name,manager_id,location_id ) \ 
+  ("userfile://defaultdb.public.userfiles_guy/departments.csv") WITH skip='1', nullif = '';
+╒═════════════════════════════════════════════════════════════════════════════════════════════╕
+  we specified WITH skip=1, nullif = ''; this signified that we should skip the first line of 
+  the CSV file (which consisted of a header line) and treat blanks as null values.            
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
 
 
 

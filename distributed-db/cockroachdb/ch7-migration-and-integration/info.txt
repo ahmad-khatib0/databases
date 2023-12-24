@@ -1,0 +1,302 @@
+userfile storage
+  Let’s start with uploading a file to cluster userfile storage. Userfile storage is a sort of
+  virtual filestore maintained by the CockroachDB cluster, allowing access to files from
+  the SQL layer across the entire cluster.
+
+Note that IMPORT INTO invalidates all foreign key constraints on the target table. These
+  foreign keys need to be re-enabled using the VALIDATE CONSTRAINT command.
+
+There are a variety of ways to migrate from one database system to another. The most straightforward way is:
+1. Extract DDL from the source system and convert that DDL to CockroachDB-
+   compatible CREATE TABLE, INDEX, VIEW, and other statements.
+2. Dump table data from the source system to CSV or another flat-file format.
+3. Import the flat files using the IMPORT or IMPORT INTO statements.
+
+The following sed commands will perform a lot of the edits required for converting from oracle:
+  s/VARCHAR2(.*)/VARCHAR/g
+  s/NUMBER(.*,0)/INT/g
+  s/NUMBER(.*,.*)/DECIMAL(\1)/g
+  s/NUMBER\((.*),\*\)/FLOAT(\1)/g
+  s/NUMBER/FLOAT/g
+  s/USING INDEX (.*) ENABLE//g
+  s/USING INDEX //g
+  s/ENABLE//g
+  s/\"(.*)\"\.//g
+
+
+Extracting DDL from MySQL
+  MySQL supports a SHOW CREATE command, which can be used to extract DDL for
+  a particular object. For instance, in the following code, we extract the DDL for the
+  customer table in the Sakila schema:
+  
+$ mysql -uroot -D sakila -s -N
+mysql> show create table customer;
+
+
+You can also dump all the DDL for a schema using the mysqldump command with the
+-d option. -d suppresses data in the output.
+$ sakila-db mysqldump -d -u root sakila
+
+Extracting DDL from PostgreSQL
+  You can extract DDL from a PostgreSQL database by using the pg_dump command with the -s or 
+  --schema-only options. Here we dump the SQL from the DVDRental sample database.1 You can also 
+  specify the -t option to extract DDL for a specific table in the DVDRental database:
+  
+$ pg_dump -s dvdrental -t customer
+
+
+
+General Considerations When Converting DDL
+  A lot of the drudgery involved in converting DDL to CockroachDB involves repeti‐
+  tively changing data types and removing syntax clauses that have no effect in CockroachDB.
+  However, there are some more nuanced decisions that you’ll need to make that are reflective 
+  of more substantial differences between CockroachDB and other SQL databases:
+  
+• In a distributed SQL system, the selection of the primary keys data type and population 
+  mechanisms are particularly significant. 
+  
+• Triggers may be implemented in other systems that implement business logic
+  or refine referential integrity constraints. Carefully review the trigger code and
+  determine if this logic needs to be implemented in application logic.
+  
+• Some databases allow the definition of user-defined data types or domains, which
+  will be associated with their own constraints and data types. Most of these will need 
+  to be folded into your DDL (although CockroachDB does support ENUMs as user-defined types).
+  
+• The sequence of SQL statements is important. FOREIGN KEY references in CockroachDB can 
+  be created only if the referenced table exists. You may need to adjust the sequence of SQL 
+  statements to ensure that there are no broken dependencies. If you can defer all foreign key 
+  constraint generation until after every table is created, then that would be ideal. You may also 
+  find that your overall migration is faster if all index and constraint creations are deferred 
+  until after table data has been loaded.
+
+• Review the indexing scheme carefully. In particular, in CockroachDB, covering
+  indexes are a more important optimization than in some other databases.
+
+Exporting Data:
+  In Oracle, we can simply use the set sqlformat csv setting to cause the SQLcl command-line 
+  tool to write data out in CSV format. following script perform this task:
+set head on
+set echo off
+set pagesize 0
+set verify off
+set feedback off
+set sqlformat csv
+select * from &1;
+exit
+
+In SQL Server, you can export data to CSV from the SQL Server Management Studio,
+  or you can use the sqlcmd command line as follows:
+sqlcmd -U SA -P **** -d AdventureWorks2019 \ 
+-Q 'SELECT * FROM HumanResources.Employee' -W -w 1024 -s”,”
+
+MySQL allows data to be dumped to CSV from the mysqldump command:2
+$ mysqldump -u root --no-create-info --tab=/tmp Sakila customer --fields-terminated-by=,
+
+In PostgreSQL, we can copy files to CSVs using the COPY command:
+dvdrental=# COPY customer to '/tmp/customer.csv' DELIMITER ',' CSV HEADER; 
+COPY 599
+
+
+Directly Importing PostgreSQL or MySQL Dumps: 
+
+In some circumstances, you can directly import PostgreSQL or MySQL dump files in
+  a single operation. The IMPORT PGDUMP and IMPORT MYSQLDUMP commands can read an entire dump 
+  file and attempt to create the tables and load the data directly. For PostgresSQL, use pg_dump 
+  to dump the required data. In this case, we dump the DVDRental databases:
+$ pg_dump dvdrental >dvdrental.pgdump
+
+From MySQL, use mysqldump. In this example, we dump the Sakila sample database:
+$ mysqldump -u root Sakila >Sakila.dump
+
+Now, we load the files concerned into userfile storage:
+$ cockroach userfile upload Sakila.dump Sakila.dump --url $CRDB_CLUSTER
+  -- uploaded to userfile://defaultdb.public.userfiles_guy/Sakila.dump
+  
+$ cockroach userfile upload dvdrental.pgdump --url $CRDB_CLUSTER
+  -- uploaded to userfile://defaultdb.public.userfiles_guy/dvdrental.pgdump
+
+Now let’s try to import the MySQL dump file:
+$ IMPORT MYSQLDUMP 'userfile://defaultdb.public.userfiles_guy/Sakila.dump' ;
+  -- ERROR: unimplemented: cannot import GEOMETRY columns at this time....
+
+or try the PostgreSQL dump:
+  -- ERROR: cannot add a SET NULL cascading action on column "payment.rental_id"
+
+this is the most common experience when importing dump files directly. Unless the source database 
+  uses only very vanilla schema objects, something in the dump file will trip up CockroachDB.
+  You are, therefore, probably better off extracting the DDL first. and hand-converting it to 
+  CockroachDB-compatible syntax and features
+
+
+
+Synchronizing and Switching Over: 
+
+To ensure that we can add new rows to the PostgreSQL version of that table during the 
+  transition, we are going to set up a CDC stream between PostgreSQL and CockroachDB.
+  The following statement creates a CDC  (change data capture) “slot” in PostgreSQL:3
+  
+SELECT * FROM pg_create_logical_replication_slot('cockroach_migration', 'wal2json');
+    slot_name
+ | xlog_position
+---------------------+---------------
+cockroach_migration | 0/1CF4F60
+
+( We’re using the wal2json plug-in to format the change records in an easy-to-parse
+  JSON structure. This package might need to be installed on a default PostgreSQL deployment.
+  The first parameter to pg_create_logical_replication_slot is a unique name we
+  are going to use to access the CDC stream. The second parameter specifies a plug-in
+  that can be used to control how the change data feed is formatted and accessed. The
+  test_decoding plug-in is included in the base PostgreSQL distribution; it translates
+  the changefeed to text format, which we will use in our synchronization program.
+)
+
+Once the changefeed is created, we can use the pg_logical_slow_peek_changes
+  function to pull change records from the stream. For instance:
+SELECT * FROM pg_logical_slot_get_changes('cockroach_migration', NULL, NULL);
+
+Our top-level migrate and synchronize logic might look something like this (in JavaScript):
+
+  awaitawaitpgConnection.connect();
+  crdbConnection.connect();
+  await startReplication();
+  await copyTable();
+  while (true) {
+     await syncChanges();
+  }
+
+So We create a connection to PostgreSQL and to CockroachDB. We commence the PostgreSQL CDC 
+  stream, copy the table data from PostgreSQL to CockroachDB, then continuously synchronize 
+  any changes from PostgreSQL to CockroachDB.
+
+The startReplication function is simple—it simply creates the replication 
+  slot that we’re going to use to capture the changefeed:
+  
+  async function startReplication() {
+    try {
+      const replicationStatus = await pgConnection.query(
+        `SELECT * FROM pg_create_logical_replication_slot ( 'cockroach_migration', 'wal2json')`
+      );
+      console.log(replicationStatus.rows[0]);
+    } catch (error) {
+      console.warn( 'Warning ', error.message);
+    }
+  }
+
+
+The copyTable() function copies data from PostgreSQL to CockroachDB using SELECT and 
+  INSERT statements. You could substitute a more performant extract and load procedure 
+
+async function copyTable() {
+	const pgData = await pgConnection.query('SELECT * from rental');
+	for (let rowNo = 0; rowNo < pgData.rows.length; rowNo += 1) {
+		const row = pgData.rows[rowNo];
+		await crdbConnection.query(
+			`INSERT INTO rental (
+         rental_id,rental_date,inventory_id, customer_id,return_date,staff_id,last_update
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+			[
+       row.rental_id, row.rental_date, row.inventory_id, row.customer_id,
+			 row.return_date, row.staff_id, row.last_update
+			]
+		);
+	}
+	console.log(pgData.rows.length, ' rows copied');
+}
+
+Once the bulk of the data is migrated, we can keep the CockroachDB database in sync
+  with PostgreSQL by monitoring the changefeed and issuing INSERTs or UPSERTs as appropriate. 
+  Each time we call pg_logical_slot_get_changes, we can retrieve one or more rows in the output:
+  
+async function syncChanges() {
+	const changeSQL = await pgConnection.query(
+		`SELECT * FROM pg_logical_slot_get_changes('cockroach_migration', NULL, NULL)`
+	 );
+  
+	for (rowNo = 0; rowNo < changeSQL.rows.length; rowNo++) {
+		const changePayload = changeSQL.rows[rowNo];
+		await processSingleChange(changePayload);
+	}
+}
+
+
+We pull change records using the pg_logical_slot_get_changes function. Note that
+  this function removes change records once they are retrieved, so we never process the same record 
+  twice. However, we need to be sure that we definitely apply the change. There’s no transactional 
+  consistency available to us here! In the following example we process a single change record. 
+  This simplified implementation handles only INSERTs into the rental table but could be modified to
+  dynamically process any changes to any table:
+
+
+async function processSingleChange(rawPayload) {
+	const jsonPayload = JSON.parse(rawPayload.data);
+	if ('change' in jsonPayload) {
+		for (let cindx = 0; cindx < jsonPayload.change.length; cindx++) {
+			const changeData = jsonPayload.change[cindx];
+			const columnCount = changeData.columnnames.length;
+			if (changeData.kind === 'insert' && changeData.table === 'rental') {
+				const newValue = {}; // Object containing CDC row values
+				for (let colno = 0; colno < columnCount; colno++) {
+					const columnName = changeData.columnnames[colno];
+					newValue[columnName] = changeData.columnvalues[colno];
+				}
+				const insertSQL = `
+          UPSERT into rental (
+            rental_id,rental_date,inventory_id, customer_id,return_date,staff_id,last_update
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7)`;
+          
+				const result = await crdbConnection.query(
+          insertSQL,
+					[
+            newValue.rental_id, newValue.rental_date,
+						newValue.inventory_id, newValue.customer_id,
+						newValue.return_date, newValue.staff_id,
+						newValue.last_update
+					]
+         );
+        
+				console.log(result.rowCount, 'rows', result.command + 'ed');
+			}
+		}
+	}
+}
+
+
+Now, both databases can run in parallel, and all new rentals will be automatically
+  copied from PostgreSQL to CockroachDB. When we’re ready to switch over, we can switch 
+  the application over from PostgreSQL to CockroachDB and shut down the PostgreSQL database.
+
+This is a very simplified example of database synchronization. 
+  There’s a lot more we would need to do in real life:
+• We should implement code to synchronize other tables.
+• We should handle UPDATEs and DELETEs as well as INSERTs.
+• We may need to consider using bulk inserts and parallel threads of execution to
+  ensure that the CockroachDB target does not fall behind the PostgreSQL source.
+• If the application is distributed, there may be a need to prevent inserts from hitting 
+  the PostgreSQL database after inserts commence on the CockroachDB side. All inserts into 
+  PostgreSQL should cease before any inserts commence on CockroachDB.
+
+When a CDC option is not available, then you might be able to implement a similar functionality using 
+  database triggers. For example, if you wanted to synchronize with an Oracle database, you could 
+  write database triggers that capture changes to source tables and send these to a STAGING table.
+
+
+Change Data Capture to Kafka:
+
+The first step is to create a topic in Kafka matching the table names for which feeds
+will be created.4 This can be done using the kafka-topics command:
+
+$ kafka-topics --create --topic users --bootstrap-server localhost:9092
+  -- Created topic users.
+
+Once the Kafka topics are created, you can create a changefeed with a Kafka URL as the destination:
+$ defaultdb> CREATE CHANGEFEED FOR TABLE movr.rides,movr.users 
+             INTO 'kafka://localhost:9092' WITH updated, resolved='120s';
+
+
+OR: Avro is an alternative data format for changefeeds with Kafka: 
+$ CREATE CHANGEFEED FOR TABLE movr.rides,movr.users INTO 'kafka://localhost:9092'
+  WITH format = experimental_avro, confluent_schema_registry = 'http://localhost:8081';
+
+
+
