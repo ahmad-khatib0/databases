@@ -1,0 +1,140 @@
+
+Connection Pools and Blocked Connections
+  Most connection pool implementations will block requests for new connections
+  if all the pooled connections are in use. Therefore, it’s important to configure a
+  sufficient number of connections in the pool for the anticipated concurrency. The
+  CockroachDB documentation suggests configuring four connections for every core
+  in the entire cluster. For instance, if you have a three-node cluster with eight cores
+  in each node, you might configure 3 × 8 × 4 = 96 connections. However, this is just
+  a guideline—the optimal number will depend heavily on the duration of each connection 
+  and the amount of idle time each connection experiences as the application performs 
+  nondatabase tasks. Bear in mind that the number of connections you determine should be 
+  shared across all of the connection pools that you have configured. So, for example, 
+  if you have calculated an ideal number of connections as 96, and you have four application
+  servers, then each of these applications servers should have 24 connections (96 / 4).
+  It’s also critically important to release connections when not in use. For instance, in
+  the Node.js example, the connection.release() statement at the end of our function is vital.
+
+
+
+Projections
+  In relational database parlance, “projection” refers to the selection of a subset of
+  columns from a table (or attributes from an entity). In practice, a projection is
+  represented by the list of columns in a SELECT clause.
+
+If a concurrent transaction modifies the same table row between the time our transaction commences 
+  and the time we attempt to modify that row, then we will encounter a 
+  TransactionRetryWithProtoRefreshError: WriteTooOldError .... Types of Transaction Retry Errors: 
+  The WriteTooOldError type of transaction retry is one of a family of errors—includ‐
+  ing RETRY_SERIALIZABLE and others that indicate that a retry can and probably
+  should be attempted. While the various errors have different—and sometimes quite
+  complex—underlying causes,2 they all issue the same 40001 error code.
+  
+
+Automatic Transaction Retries:
+• If a single statement that returns less than 16 KB of output (a single UPDATE,
+  for instance, with no RETURNS clause) encounters a 40001, then CockroachDB will automatically retry the 
+  statement with no intervention required on your part. This logic applies to both implicit 
+  transactions (without a BEGIN statement) and explicit transactions with only a single statement. 
+  The retries will continue indefinitely unless the session variable statement_timeout is specified.
+• The Go DBTools library includes a transaction retry handler for Go transactions.
+  You pass a set of operations to the transaction handler, which will automatically
+  retry transactions with a configurable retry limit and delay. The cockroach-go
+  project contains similar helper functions maintained by the CockroachDB team.
+• Many object-relational mapping frameworks—SQLAlchemy for Python, for instance—will automatically 
+  retry transactions for you transparently. See the CockroachDB documentation for further details.
+
+
+Why Can’t CockroachDB Handle All Transaction Retries?: 
+  Coding for transaction retries can seem tedious and since CockroachDB retries transactions 
+  automatically in some circumstances, why can’t CockroachDB handle all retries automatically?
+  The short answer is that in many circumstances CockroachDB cannot determine
+  the logical connection between different statements in a transaction. For instance, CockroachDB 
+  cannot know how the SELECT statement before the UPDATEs might affect the UPDATE logic. Only when 
+  the transaction is completely unambiguous—which only really happens when there’s just a single 
+  statement in the transaction—can CockroachDB safely perform a retry.
+
+
+In the optimistic transaction model, we feel it is unlikely that there will be a conflicting update 
+  that will cause a transaction to abort. Therefore, we don’t “pre-lock” data and rely on transaction 
+  retries to handle any conflicts that might occur. In the pessimistic model, we are quite worried 
+  about transaction conflicts, so we preemptively lock rows that might come into conflict.
+
+
+Reducing Contention by Eliminating Hot Rows
+  The most significant cause of transaction retries is contention for a small number of “hot” rows.
+  Hot rows are those that are frequently changed by multiple database sessions. Hot rows often 
+  indicate design flaws in the data model. For instance, if we decided to maintain running totals 
+  of account transfers per day, we might end up updating a single row after every transaction.
+  The use of embedded arrays or JSON data types can also create these sorts of issues.
+  For example a JSON column: 
+  "measurements": [
+    { "locationid": "8a90ec6e-370a-4f90-bdc7-2f4bcdd381c2",
+      "measurement": "32.6933968058154" 
+    }, ............................ other more 20 objects 
+  ]
+  This design might result in quick retrieval time but has now created a super hotspot. Keeping every 
+  location in its own row would be superior. Remember—denormaliza‐ tion should generally serve the 
+  goal of improving performance; beware of denormalizations that actually reduce throughput.
+
+
+Reordering Statements
+  The ordering of DML statements within a transaction can have a big impact on contention. Generally, 
+  the statement most likely to involve contention should be placed first in the transaction sequence. 
+  Placing the contentious statement first has several good implications:
+• CockroachDB can automatically retry the first statement in a transaction transparently, 
+  without requiring explicit handling.
+• If the transaction fails, it will fail before the execution of other statements. The
+  execution and rollback of these other statements will involve overhead on the server.
+
+
+Ambiguous Transactions Errors
+  In a distributed system, some errors can have ambiguous results. For example, if you
+  receive a connection closed error while processing a COMMIT statement, you cannot
+  tell whether the transaction was successfully committed or not. These errors are possible in 
+  any database, but CockroachDB is somewhat more likely to produce them than other databases 
+  because ambiguous results can be caused by failures between the nodes of a cluster. 
+  These errors are reported with the PostgreSQL error code 40003(statement_completion_unknown).
+  Ambiguous errors can be caused by nodes crashing, network failures, or timeouts.
+  Note that ambiguity is possible for only the last statement of a transaction 
+  (COMMIT or RELEASE SAVEPOINT) or for statements outside a transaction. If a connection drops
+  during a transaction that has not yet tried to commit, the transaction will definitely be aborted.
+  In general, you should handle ambiguous errors the same way as connection closed
+  errors. If your transaction is idempotent—capable of being executed multiple times
+  with the same result—it’s safe to retry it on ambiguous errors. UPSERT operations are
+  typically idempotent (providing there are no dynamically allocated column values),
+  and other transactions can be written to be idempotent by verifying the expected
+  state before performing any writes. Increment operations such as UPDATE my_table SET x=x+1 
+  WHERE id=$1 are typical examples of operations that cannot easily be made idempotent.
+
+It’s possible for lower-priority transactions to be deferred indefinitely on a busy system,
+  which might be more UNDESIRABLE THAN A DELAY for the high-priority workload. Transaction priorities 
+  can be set using the SET TRANSACTION command. By default, all transactions have the NORMAL priority.
+
+
+Summary of Transaction Approaches:
+• Your critical transactions should include some form of retry logic. Even if you
+  avoid retry errors using every technique we have explored, there’s still a chance of
+  a retry error due to contention on internal resources.
+  
+• Transactions should be kept as short in scope and duration as possible. Any
+  statement that is not needed within the transaction should be moved out of scope.
+  
+• The DML most likely to cause a conflict should be placed first in the transaction.
+
+• If preserving order in the queue is important, use the FOR UPDATE statement to
+  lock resources before modifying them. This pessimistic locking pattern will not always be faster, 
+  but it will tend to ensure that transactions get processed in the order in which they are received.
+  
+• For read-only transactions, consider performing “time travel” queries with AS OF
+  SYSTEM TIME to avoid transaction retries.
+  
+• When possible, batching all the SQL statements in the transaction into a single
+  request can improve performance and simplify retry logic. Be mindful of the
+  possibility of SQL injection in these batched routines.
+
+Working with ORM Frameworks
+  Object-relational mapping (ORM) frameworks automate the mapping of program objects to relational 
+  structures and reduce or eliminate the need to use SQL language instructions in program code.
+
+
