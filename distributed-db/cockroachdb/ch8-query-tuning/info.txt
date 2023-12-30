@@ -1,0 +1,138 @@
+╒══════════════════════════════════════════════════════════════════════════════════════════╕
+  Indexes can be used not just to filter rows but also to return rows in a specific order. 
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+
+The DEBUG option of EXPLAIN ANALYZE creates a package of information that contains
+  just about everything you could possibly want when tuning a SQL statement
+  The debug packet can be retrieved from the URL shown in the output of EXPLAIN
+  ANALYZE (DEBUG) or accessed using the cockroach statement-diag command:
+  $ cockroach statement-diag list --url $CRDB_CLUSTER
+  $ cockroach statement-diag download 682648827880505350 myExplainDebug.zip --url $CRDB_CLUSTER
+
+In some SQL databases, indexes and tables are structured differently, and there’s a
+  decision to be made as to whether a table access should be index-based or table scan–
+  based. However, in CockroachDB, the structure of tables and indexes is identical, so
+  the question is not so much “index or table?” as “which index?”
+
+Index merges
+  When a query filters on multiple columns, each of which is indexed separately, CockroachDB 
+  may perform an index merge—identified in the EXPLAIN output as a zigzag join.
+  
+
+Bear in mind that even if the distribution is “local,” the node concerned can fetch
+  data from other nodes. However, all the SQL processing of that data (sorting, joining,
+  filtering) will occur on the gateway node. There’s no right or wrong number of nodes that 
+  need to be involved in a query. When aggregating larger amounts of data, the use of multiple 
+  nodes helps to parallelize the processing and avoid network transmission of data—because each node 
+  can partially aggregate the data. On the other hand, for single-row lookups, we might expect and hope 
+  that a single node can resolve the query, and we would be concerned if we see multiple nodes participating.
+
+------------------------------------------------------------------------------------
+We can also inadvertently cause a full scan by applying operations to query predi‐
+  cates. For instance, if we’re not sure how addresses are capitalized in the database, we
+  might be tempted to do something like this:
+  
+movr> EXPLAIN SELECT name FROM users WHERE LOWER(address)=LOWER('20069 Tara Cove');
+
+The solution to a lot of these problems is to create indexed computed columns on
+  the expressions concerned. In the following example, we create a computed column
+  for the address with the street number removed and then create an index on that column:
+
+movr> ALTER TABLE users ADD address_no_number STRING AS (
+   SUBSTR(address,POSITION(' ' IN address)+1) 
+) VIRTUAL;
+
+CREATE INDEX users_add_no_num_ix ON users(address_no_number) STORING (name);
+
+We can now use that index to effectively search for addresses without the street number:
+
+EXPLAIN SELECT name FROM users WHERE address_no_number = 'Tara Cove';
+------------------------------------------------------------------------------------
+
+The complexity of join optimization grows exponentially as more joins are added to the SQL. 
+  In extreme cases, the number of possible plans will exceed the factorial of the number of tables 
+  involved. For instance, for a 5-table join with no filter conditions, the number of possible 
+  orders may be as high as 5! (120). Since CockroachDB supports multiple join methods for each of 
+  these orders, the number of possible plans may be in the hundreds. The session parameter 
+  reorder_joins_limit limits the number of join recordings that the optimizer will consider. By default, 
+  the optimizer will reorder only subtrees containing four or fewer joins by default. For a join with 
+  a high elapsed time, increasing this value might allow the optimizer to find a better option.
+
+
+Join Methods
+Most CockroachDB SQL joins will use one of the following algorithms:
+Lookup join
+  CockroachDB performs a search of the second (or “inner”) table for each row found in the first 
+  (or “outer”) table. This type of join is most effective when the inner table is fully indexed on 
+  the join condition because otherwise, each search would require a full or partial range scan. 
+  The index join,  is a special case of the lookup join.
+Hash join
+  When no index exists to support a join, then a hash join will be performed,
+  CockroachDB creates a hash table (in memory, if possible; on disk, if necessary) from the smaller 
+  of the two tables, then uses that hash table as a sort of on-the-fly index to look up rows matching 
+  the join conditions from the larger table. Hash joins provide scalable performance when joining all 
+  or most of the table’s rows or where there is no supporting index for the join.
+Merge join
+  Both tables must have equivalent indexes on the join conditions. Merge joins
+  are used in similar circumstances to hash joins but will normally outperform the
+  hash join because there’s no need to create an in-memory hash table. 
+inverted join
+  This algorithm is less commonly used. It occurs when there is a join condition
+  that leverages values in JSONB or ARRAYs and which can be joined only by the use
+  of an inverted index on those values 
+
+
+If the equality condition in a join plan does not include all the columns in the join condition, 
+  then it may indicate that the join is only partially supported by an index.
+
+Join hints: Here are examples of a join forcing each of the three methods
+
+SELECT COUNT(*) FROM rides r
+INNER MERGE JOIN vehicles v ON ( r.vehicle_city = v.city AND v.id = r.vehicle_id );
+
+SELECT COUNT(*) FROM rides r
+INNER LOOKUP JOIN vehicles v ON ( r.vehicle_city = v.city AND v.id = r.vehicle_id );
+
+SELECT COUNT(*) FROM rides r
+INNER HASH JOIN vehicles v ON ( r.vehicle_city = v.city AND v.id = r.vehicle_id );
+
+
+Outer joins are executed using the same algorithms as inner joins. However, outer
+  joins limit the possible join orders because inner tables have to be accessed before the
+  outer tables. The lookup join algorithm cannot, therefore, be used with right outer
+  joins (because you can’t start a lookup from a value that doesn’t exist on the “right” table).
+An anti-join is one that returns rows that do not match rows in another table. There
+  are a few ways to express this in SQL. One way is to perform a NOT IN subquery or NOT EXISTS
+
+Summary of Join Guidelines
+Joins are one of the most expensive SQL operations. For the transactional workloads
+typically encountered by CockroachDB, the following guidelines are suggested:
+
+• Enable lookup joins for queries that join small numbers of rows by ensuring that
+  indexes exist on all columns included in the join conditions.
+• Try to eliminate as many rows as possible before joining—make sure that any
+  non-join WHERE clause conditions are also supported by efficient indexes.
+• Use join hints only as a last resort and always test alternative hints carefully.
+  Remember that join hints force a specific order as well as a specific method.
+• Consider alternatives to joins—the denormalizations to avoid join overhead.
+
+
+Disk sorts
+  When a sort operation exceeds the threshold defined by sql.distsql.temp_storage.workmem, CockroachDB 
+  will write to temporary disk files during the sort operation. By default, the limit is 64 MB:
+$ show cluster setting sql.distsql.temp_storage.workmem;
+
+
+Statistics are collected when:
+• Tables are created
+• Schema changes occur
+• Time passes
+• Changes to the table exceed a threshold
+ 
+
+When data is needed in a specific order, an index retrieval is usually preferred to
+  a sort operation. If a sort operation is required, consider changing the amount of
+  memory available to the sort to avoid disk sorts.
+
+
+
