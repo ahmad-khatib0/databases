@@ -1,0 +1,88 @@
+for databases we at the Apache ShardingSphere community are proponents of what we call Database Plus 
+  which in simple terms means software that allows you to manage and improve any type of database, 
+  even to integrate different database types into the same system.
+
+some organizations have already started to adopt a cloud-first strategy, which simply means including 
+  or moving to a cloud-based solution at the expense of a strategy built around in-house data centers. 
+  This new IT trend is going to move the databases to the cloud as a Database-as-a-Service (DBaaS)
+
+NewSQL can be defined as a type of relational database management system (RDBMS)
+  looking to make NoSQL systems scalable for online transaction processing (OLTP)
+  tasks, all while keeping the ACID qualities of a traditional database system.
+
+A transparent sharding middleware splits a database into multiple shards that are stored across a 
+  cluster of a single-node DBMS instance, just as Apache ShardingSphere does.
+  Sharding middleware exists to allow a user – or in this case, an organization – to split
+  a database into multiple shards to be stored across multiple single-node DBMS instances,
+
+Data sharding
+  When a large database table is split into multiple small tables, shards are created. The newly created 
+  tables are called shards or partitions. These shards are stored across multiple nodes to work efficiently, 
+  improving scalability and performance. This type of scalability is known as horizontal scalability. Sharding 
+  eventually helps database administrators such as yourself utilize computing resources in the most 
+  efficient way possible and is collectively known as database optimization.
+
+Partitioning refers to a database that has been broken down into different subsets but is still stored 
+  within a single database. This single database is sometimes referred to as the database instance. 
+  So what is the difference between sharding and partitioning? Both sharding and partitioning include 
+  breaking large data sets into smaller ones. But a key difference is that sharding implies that the 
+  breakdown of data is spread across multiple computers, either as horizontal partitioning or vertical.
+
+The primary feature of Apache ShardingSphere is to capture database access entry and provide 
+  additional features transparently, such as redirect (sharding, read/write splitting, and shadow 
+  databases), transform (data encrypting and masking), authentication (security, auditing, and authority), 
+  and governance (circuit breaker, access limitation and analysis, QoS, and observability).
+
+As a developer, you are allowed to create custom features without having to modify the source code of 
+  Apache ShardingSphere. The pluggable architecture of Apache ShardingSphere adopts a microkernel and 
+  a three-layer pluggable mode. Apache ShardingSphere's architecture is directed toward top-level
+  APIs, so the kernel cannot be aware of the existence of specific functions. If you don't need a 
+  function, all you have to do is delete the dependency – it'll have zero impact on the system.
+
+The architectural possibilities at your disposal: 
+  Database middleware requires two things: a driver to access the database and an independent proxy.
+  Since no adaptor of an architecture model is flawless, Apache ShardingSphere chose to develop multiple 
+  adaptors. ShardingSphere-JDBC and ShardingSphere-Proxy are two independent products, but you can choose 
+  what we interchangeably refer to as the hybrid model or mixed deployment, and deploy them together. 
+  They both provide dozens of enhanced features that see databases as storage nodes that apply to 
+  scenarios such as Java isomorphism, heterogeneous languages, cloud-native, and more.
+
+ShardingSphere-JDBC:
+  Being the predecessor and eventually the first client of the Apache ShardingSphere ecosystem, 
+  ShardingSphere-JDBC is a lightweight Java framework that provides extra services at the Java JDBC 
+  layer. ShardingSphere-JDBC's flexibility will be very helpful to you for the following reasons:
+  • It applies to any ORM framework based on JDBC, such as JPA, Hibernate, Mybatis, and Spring JDBC 
+    Template. It can also be used directly with JDBC. 
+  . It supports any third-party database connection pool, such as DBCP, C3P0, BoneCP, and HikariCP.
+  • It supports any database that meets JDBC's standards. Currently, ShardingSphere JDBC supports 
+    MySQL, PostgreSQL, Oracle, SQLServer, and any other databases that support JDBC access.
+
+ShardingSphere-Proxy: 
+  ShardingSphere-Proxy was the second client to join the Apache ShardingSphere ecosystem. A transparent 
+  database proxy, ShardingSphere-Proxy provides a database server that encapsulates the database binary 
+  protocol to support heterogeneous languages. The proxy is as follows:
+  • Transparent to applications; it can be used directly as MySQL/PostgreSQL. 
+  • Applicable to any kind of client that is compatible with the MySQL/PostgreSQL protocol.
+  
+
+Comparing ShardingSphere-JDBC and ShardingSphere-Proxy: 
+  ShardingSphere-Proxy has a distributed computing module and can be deployed independently. It 
+  applies to applications with multidimensional data calculation, which are less sensitive to delay 
+  but consume more computing resources.
+
+Hybrid deployment
+  Adopting a decentralized architecture, ShardingSphere-JDBC applies to Java-based high-performing and 
+  lightweight OLTP applications. On the other hand, ShardingSphere-Proxy provides static entry and 
+  comprehensive language support and is suitable for OLAP applications, as well as managing and 
+  operating sharding databases. This results in a ShardingSphere ecosystem that consists of multiple 
+  endpoints. Thanks to a unified sharding strategy and the hybrid integration of ShardingSphere-JDBC and
+  ShardingSphere-Proxy, a multi-scenario-compatible application system can be built with ShardingSphere.
+
+
+
+
+
+
+
+
+
