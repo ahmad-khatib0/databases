@@ -1,3 +1,12 @@
+Glossary
+  Node: Instances of the computing layer or storage layer component processes
+        can include physical machines, virtual machines, containers, and more.
+  Cluster: Multiple nodes grouped to provide specific services.
+        Data migration: Data migration moves data from one storage cluster to another.
+  Source end: The storage cluster where the original data resides.
+  Target end: The target storage cluster where the original data will be migrated.
+
+
 for databases we at the Apache ShardingSphere community are proponents of what we call Database Plus 
   which in simple terms means software that allows you to manage and improve any type of database, 
   even to integrate different database types into the same system.
@@ -185,9 +194,6 @@ SQL Federation Engine:
   Therefore, to obtain data from the storage node, it does not rely on the original SQL but
   instead can leverage the query plan tree, regenerate a new SQL that can be executed on
   a single data node, and later send this to the storage node according to the routing result.
-
-
-
 
 
 
