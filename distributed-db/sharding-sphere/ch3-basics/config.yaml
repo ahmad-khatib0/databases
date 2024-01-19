@@ -17,6 +17,9 @@ rules:
   # - !AUTHORITY
   #   users:
   #     - root@%:root
+  # Note that % in root@% means that ShardingSphere-Proxy can be connected to
+  # via any host address. When nothing follows @, the default value is %. You
+  # can also use user1@ localhost to restrict user1 to local logins only
   #     - sharding@:sharding
   #   provider:
   #     type: ALL_PRIVILEGES_PERMITTED
@@ -30,6 +33,23 @@ rules:
       type: SCHEMA_PRIVILEGES_PERMITTED
       props:
         user-schema-mappings: root@=test, user1@127.0.0.1=db_dal_admin, user1@=test
+  # • When the user root connects to ShardingSphere from any host, they have
+  # permission to access the schema named test.
+  # • When user1 connects to ShardingSphere from 127.0.0.1, they have the
+  # authority to access the schema named db_dal_admin.
+  # • When user1 connects to ShardingSphere from any host, they have the right
+  # to use the schema named test.
+
+  # When other unauthorized situations occur, any connection will
+  # be refused, such as the following:
+  # • show databases
+  # • use database
+  # • select * from database.table
+  # Apart from the login scenario, a schema permission check is also
+  #  performed when a user enters the following SQL statements:
+  # • show databases
+  # • use database
+  # • select * from database.table
 
   - !SHARDING
     autoTables:
@@ -43,6 +63,7 @@ rules:
       t_order_hash_mod:
         type: HASH_MOD
         props:
+          # split data tables in the database into 4 shards
           sharding-count: 4
 
   - !ENCRYPT

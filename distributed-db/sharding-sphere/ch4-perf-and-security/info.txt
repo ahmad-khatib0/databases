@@ -1,0 +1,123 @@
+ShardingSphere uses the standard Serial Peripheral Interface (SPI) to integrate the HA schemes of 
+  various databases. Each scheme needs to implement the interface of database discovery. During 
+  initialization, ShardingSphere will use the user-configured HA scheme to create a scheduling task 
+  based on ElasticJob, and by default, execute this task every 5 seconds to query the underlying 
+  database status, and update the results to the ShardingSphere cluster in real time.
+
+Apache ShardingSphere's encryption and decryption rules and configurations: 
+
+• Data Source Configuration: This is used to configure the data source.
+
+• Encryption Algorithm Configuration: This refers to the chosen encryption algorithm. Now, ShardingSphere 
+  has two built-in encryption algorithms, that is, advanced encryption standard (AES) and message-digest 
+  algorithm (MD5). Of course, when necessary, users can leverage the API to develop a custom encryption algorithm.
+  
+• Encryption Table Configuration: This is used to show the following:
+    Which column is the cipher column storing encrypted data
+    Which column is the plain column storing unencrypted data
+    Which column is the logic column where the user writes SQL statements
+  
+• Logic Column: This is the logical name used to calculate an encryption/decryption
+  column. It's also the logical identifier of the column in SQL. Logical columns include cipher 
+  columns (required), assisted query columns (optional), and plaintext columns (optional).
+  
+• Cipher Column: This is the encrypted column.
+
+• Assisted Query Column: Literally, the assisted query column is designed to facilitate
+  queries. In terms of some non-idempotent encryption algorithms with higher security
+  levels, ShardingSphere also provides queries with an irreversible idempotent column.
+  
+• Plain Column: This is the type of column that stores plaintext. It can still provide services 
+  during an encrypted data migration process. The user can delete it when data cleaning ends.
+
+
+The workflow process of encryption and decryption is showcased in the following example. Now, let's
+  assume that there is a t_user table in your database. This table contains two fields: pwd_plain 
+  (to store plaintext data, that is, the fields to be encrypted) and pwd_cipher (to store ciphertext data, 
+  that is, the encrypted fields). At the same time, it's required to define logicColumn as pwd. As the 
+  user, you should write the following SQL command: INSERT INTO t_user SET pwd = '123'. When Apache 
+  ShardingSphere receives the SQL command, it will complete the conversion process to rewrite the actual SQL.
+
+
+The principle of the enhanced algorithm is to encrypt/decrypt original data and variables together. A timestamp is 
+  one of the variables. However, since identical data has different encryption results, IT'S IMPOSSIBLE for queries 
+  with cipher data to return all of the data. To solve this issue, Apache ShardingSphere creates the Assisted
+  Query Column concept, which can store the original data in an irreversible encryption
+  process: when a user queries encrypted fields, the Assisted Query Column concept can
+  assist the user in a query. Of course, all of this is completely transparent to the user.
+
+
+User ID storage
+  In centralized DBMS, user authentication information is often stored in a special data table. For example, as a 
+  famous centralized database by design, MySQL stores user information in the mysql.user system table:
+    mysql> select Host, User from mysql.`user`;
+
+DistSQL is the built-in language of ShardingSphere that allows users to manage ShardingSphere and all rule configurations 
+  through a method that is similar to SQL. This is so that users can operate Apache ShardingSphere in the same way as 
+  SQL database operations. DistSQL contains three types, namely RDL, RQL, and RAL:
+ ••• Resource & Rule Definition Language (RDL): This is used to create, modify, and delete resources and rules.
+ ••• Resource & Rule Query Language (RQL): This is used to query resources and rules.
+ ••• Resource & Rule Administration Language (RAL): This is used to manage features such as hint, transaction 
+     type switch, execution plan query, and elastic scaling control.
+
+
+Considering user deployment scenarios, Apache ShardingSphere provides three operating modes: cluster mode, 
+  memory mode, and standalone mode. Cluster mode is the production deployment method recommended by ShardingSphere. 
+  With cluster mode, horizontal scaling is achieved by adding computing nodes, while multi-node deployment
+  is also the basis for high service availability.
+
+With standalone mode, users can also deploy multiple computing nodes, but unlike with cluster mode, configuration sharding 
+  and state coordination cannot be performed among multiple computing nodes in standalone mode. Any configuration or metadata 
+  changes only work on the current node, that is, other nodes cannot perceive the modification operations of other computing nodes.
+
+The registry center is the foundation of the cluster mode implementation. ShardingSphere can share metadata and 
+  configurations in cluster mode because it integrates the third-party register components of Zookeeper and Etcd. 
+  Concurrently, it leverages the notification and coordination capabilities of the register center to ensure the cluster
+  synchronization of shared data changes in real time.
+
+
+Computing nodes and storage nodes are the most important aspects of ShardingSphere. Computing nodes handle switch-on 
+  and the fusing of running instances, while storage nodes manage the relationships between primary databases and 
+  secondary databases plus the database status (enable or disable)
+
+Two subnodes of the /status/compute_nodes computing node are listed as follows:
+  • /status/compute_nodes/online stores online running instances.
+  • /status/compute_nodes/circuit_breaker stores breaker running instances.
+  
+The two sub nodes of the /status/storage_nodes storage node are listed as follows:
+  • /status/storage_nodes/disable stores the current disabled secondary database.
+  • /status/storage_nodes/primary stores the primary database.
+
+In ShardingSphere, cluster management can centralize rule configuration management:
+•• The /rules node saves global rule configurations, including the authority configuration of usernames and passwords 
+   in ShardingSphere-Proxy, distributed transaction type configurations, and more.
+   
+•• The /props node stores global configuration information such as printing SQL logs and enabling cross-database queries.
+
+•• The /metadata/${schemeName}/dataSources node keeps data source configurations including database links, accounts, 
+   passwords, and other connection parameters.
+   
+•• The /metadata/${schemeName}/rules node saves the rule configuration. All function rule configurations of ShardingSphere are 
+   stored under the node, such as data sharding rules, read/write splitting rules, data desensitization rules, and HA rules.
+   
+•• The /metadata/${schemeName}/schema node stores metadata information,
+   along with the table names, columns, and data types of logical tables.
+
+
+
+what is the difference between a monitoring system and observability? In simple terms,
+  monitoring is a subset of observability. Monitoring highlights that the internal system is
+  not known by the observer (that is, it only focuses on the black box), while observability emphasizes 
+  the observer's initiative and connection with a system (that is, it cares about the white box).
+  
+In IT systems, there are three methods in which to practice observability: metrics, link tracing, and logging:
+•• Metrics leverage data aggregation to display observability and reflect the system state and trends; 
+   however, they fail to reflect system details (for example, counter, gauge, histogram, and summary).
+   
+•• Link tracing can record data of all requests and related calls from the beginning to
+   the end, to better show the process details.
+   
+•• Logging logs system execution to provide detailed system operation information,
+   but the method may cost a significant amount of resources.
+
+

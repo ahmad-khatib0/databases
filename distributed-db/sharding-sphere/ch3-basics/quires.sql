@@ -1,3 +1,6 @@
+-- With DistSQL, users don't have to configure the files again (!SHARDING section in config.yml) 
+-- They can directly boot ShardingSphere-Proxy and execute the following SQL commands:
+
 # Create a Logic Database
 CREATE DATABASE sharding_db;
 
@@ -41,6 +44,8 @@ show sharding table rules;
 
 
 
+-- ShardingSphere can output the execution plans parsed by logical SQL, 
+-- but it does not actually execute these SQL statements:
 PREVIEW select * from t_order;
 
 -- +------------------+------------------------------------------------+
