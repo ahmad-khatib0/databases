@@ -1,0 +1,277 @@
+
+Configuring an even number of nodes is unhelpful for availability because, in a
+  network partition, neither side of the partition might have a majority. For instance, if
+  a four-node cluster is split in half by a network issue, neither side will have a majority,
+  so processing cannot continue because neither side can be sure that the other is
+  not processing conflicting operations. Likewise, a four-node cluster can survive only
+  a single node failure since a two-node failure fails to leave a majority of replicas running.
+
+Benchmarking and Capacity Planning:
+• We can perform a benchmark in which we simulate the expected workload as accurately as possible.
+• We can extrapolate from another running production application that has a similar workload.
+• We can try to model the workload and mathematically predict resource requirements.
+
+Each CockroachDB node will run within a Kubernetes pod, and these pods should
+  be sized similarly to those for on-premise or cloud deployments. As a rule of thumb,
+  each pod should have between 2 and 16 vCPUs and 4 GB of RAM per vCPU.
+
+A Kubernetes node failure will at least temporarily result in the failure of a CockroachDB node. 
+  To prevent that node failure from disabling the cluster, you should align the Kubernetes 
+  nodes with CockroachDB nodes. For instance, if you deploy a three-node CockroachDB cluster 
+  on a three-node Kubernetes cluster, then it’s important that each CockroachDB node be 
+  located on a separate Kubernetes node. Otherwise, a single Kubernetes node failure might 
+  disable the CockroachDB cluster.
+
+
+Survivable failures fall into one of the following categories:
+• A hardware failure that does not cause a node to fail. In particular, the failure of a disk device.
+• The failure of one or more nodes.
+• A network failure.
+• The failure of an availability zone (perhaps a data center failure).
+• Failure of a larger region.
+
+
+Node Failures
+  The default configuration of CockroachDB provides for three replicas of each range.
+  This allows for only a single node failure. To tolerate more than one node failure, we
+  need to increase the replication factor. The replication factor is controlled by CockroachDB 
+  replication zones. The crdb_internal.zones table contains the definitions for these zones. 
+  The zone with target RANGE default defines the default zone:
+/movr> SELECT raw_config_sql FROM crdb_internal.zones WHERE target='RANGE default';
+
+To survive two node failures, we need a replication factor of at least five. We can
+configure this as follows:
+/movr> ALTER RANGE default CONFIGURE ZONE USING num_replicas=5;
+
+
+More severe network failures create more interesting scenarios. When a network
+  becomes partitioned such that the CockroachDB cluster is split in two, the side
+  of the partition with the smaller number of nodes is effectively unavailable. For a
+  three-node cluster, this will be the same as a single node failure. However, for larger clusters, 
+  the network partition may result in a larger number of nodes becoming disconnected. This is why 
+  we normally want to increase the replication factor as we increase the size of the cluster.
+  In the case of a zone survival goal, data unavailability will occur if the number of
+  nodes that become partitioned is more than half of the zone replication factor.
+
+
+When planning for a multiregion deployment, it’s important to understand your objectives. 
+Broadly speaking, multiregional deployments can deliver one of two desir‐ able objectives:
+• By distributing data close to its users, a multiregional deployment can reduce latency and 
+  improve performance for a widely distributed application. For instance, you can ensure that 
+  Australian users can update their shopping basket without having to send updates to a US data 
+  center and vice versa.
+  
+• By replicating data widely across multiple geographical regions, a multiregion
+  deployment can allow a cluster to survive severe outages that would otherwise
+  be close to catastrophic. For instance, you could ensure that the database cluster
+  continues to function even if every data center in the eastern US region fails.
+
+Although a cluster may be configured to survive the failure of a single region, it
+  may not be resilient to the failure of the same number of nodes in a single region
+  arbitrarily spread across regions in the cluster. For example, in a nine-node cluster
+  with three nodes in three regions each, the loss of a single region would result in the
+  loss of three nodes from the cluster. If we configure the replication factor of the data
+  in the cluster to maintain five copies, CockroachDB will spread the replicas across the
+  three regions with at most two copies in any single region. This way, the failure of a single 
+  region will only remove two out of five replicas of data, which ensures that all data would still 
+  be available. However, that doesn’t mean that any three nodes can fail. If one node from each 
+  region failed, then some ranges at least would lose three of five replicas and become unavailable.
+
+
+*******************************************************
+*******************************************************
+Single  Region  Deployment
+  we are deploying a three-node CockroachDB cluster on Ubuntu servers, with a fourth Ubuntu node 
+  running a load balancer. The CockroachDB nodes are called gubuntu1, gubuntu2, and gubuntu3. The 
+  load balancer is mubuntu. Each node has a cockroachdb user installed, and the CockroachDB
+  binaries already installed in /usr/local/bin. We’ll be using a fifth machine—a Mac
+  laptop—to perform the installation; we have called that the “home system.”
+
+# To increase the file descriptor limit on Ubuntu, we add nofile entries to the /etc/
+  security/limits.conf file. First, we see if any entries already exist:
+
+$ sudo -i
+
+$ grep nofile /etc/security/limits.conf
+# - nofile - max number of open file descriptors
+
+# Because there are no entries, we append new entries. If there were existing entries, we
+  would, of course, need to edit them:
+
+$ echo '* soft nofile unlimited' \ /etc/security/limits.conf
+$ echo '* hard nofile unlimited' \ >>/etc/security/limits.conf
+
+# We need to make sure the line session required pam_limits.so appears both
+  in /etc/pam.d/common-session and /etc/pam.d/common-session-noninteractive:
+
+$ grep pam_limits /etc/pam.d/common-session
+$ grep pam_limits /etc/pam.d/common-session-noninteractive
+$ echo 'session required pam_limits.so' >> /etc/pam.d/common-session
+$ echo 'session required pam_limits.so' >> /etc/pam.d/common-session-noninteractive
+
+# Also, check that the system-wide value in /proc/sys/fs/file-max is sufficient:
+$ cat /proc/sys/fs/file-max     # 9223372036854775807
+
+If timedatectl reports that the NTP service is inactive (unlikely), then enable it:1
+$ timedatectl set-ntp true
+
+# To implement the Google NTP servers, edit /etc/systemd/timesyncd.conf so that the
+  Google time servers are listed in the NTP entry within the [Time] section:
+  
+[Time]
+NTP=time1.google.com time2.google.com time3.google.com time4.google.com
+
+$ systemctl restart systemd-timesyncd.service 
+$ timedatectl show-timesync 
+
+
+# If your hosts are using chrony or ntpd to synchronize time, then the procedure is similar. Add the 
+  Google time servers to /etc/chrony.conf or /etc/ntp.conf as appropriate and restart the service. 
+  It’s very important that all nodes use the same time synchronization mechanism..
+
+
+Creating Certificates:
+# On the home system, we start by creating a certificate authority (CA) certificate:
+
+$ mkdir -p $HOME/cockroach/certs
+$ mkdir -p $HOME/cockroach/ca-cert
+$ cockroach cert create-ca --certs-dir=$HOME/cockroach/certs --ca-key=$HOME/cockroach/ca-cert/ca.key
+
+# Next, we generate certificates for each node in the cluster. Each certificate should list the 
+  endpoints that the node can respond from, including those of any load balancers. Our load balancer 
+  is going to be installed on the mubuntu host (IP address 192.168.0.197). The certificate lists 
+  gubuntu1, gubuntu1’s IP address, localhost addresses, and addresses for the mubuntu load balancer:
+  
+$ cockroach cert create-node gubuntu1 localhost 127.0.0.1 mubuntu mubuntu.local 192.168.0.197 \ 
+  --certs-dir=$HOME/cockroach/certs \ 
+  --ca-key=$HOME/cockroach/ca-cert/ca.key--overwrite
+
+# We copy that certificate to the gubuntu1 node: 
+$ cd $HOME/cockroach/certs
+$ scp ca.crt node.crt node.key cockroachdb@gubuntu1:cockroach/certs
+
+# We then repeat this process for each of the other nodes. For example, here, we
+  perform the same certificate generation and copy for gubuntu2:
+
+$ cockroach cert create-node 192.168.0.50 gubuntu2 gubuntu2.local localhost 127.0.0.1 \
+  mubuntu mubuntu.local 192.168.0.197 \ 
+    --certs-dir=$HOME/cockroach/certs \
+    --ca-key=$HOME/cockroach/ca-cert/ca.key
+
+$$ ssh cockroachdb@gubuntu2 
+$  mkdir -p cockroach/certs
+$  cd $HOME/cockroach/certs
+$  scp ca.crt node.crt node.key cockroachdb@gubuntu2:cockroach/certs
+
+# To connect remotely to our cluster without a password (for initial setup), we’ll need a
+  root client certificate. For now, we’ll just create this on the home system:
+$ cockroach cert create-client root \ 
+  --certs-dir=$HOME/cockroach/certs \ 
+  --ca-key=$HOME/cockroach/ca-cert/ca.key;
+
+# Configuring the Nodes
+  To start each Cockroach server node, we need to copy the certificates into the appropriate directory 
+  and configure a service to run the cockroach program. In the previous step, we copied the 
+  certificates into the directory ~cockroachdb/cockroach/certs. Now we move those certificates 
+  into the /var/lib/cockroachdb/certs directory:
+
+@@ cockroachdb@gubuntu1:~$
+$   sudo mkdir /var/lib/cockroachdb
+$   cockroachdb@gubuntu1:~$ sudo chown cockroachdb:cockroachdb /var/lib/cockroachdb
+$   cockroachdb@gubuntu1:~$ mv ~/cockroach/certs /var/lib/cockroachdb
+
+# make systemd 
+$ cat /etc/systemd/system/cockroachdb.service
+
+[Unit]
+Description=Cockroach Database cluster node
+Requires=network.target
+[Service]
+Type=notify
+WorkingDirectory=/var/lib/cockroachdb
+ExecStart=/usr/local/bin/cockroach start --certs-dir=certs
+  --advertise-addr=gubuntu1 --join=gubuntu1,gubuntu2,gubuntu3
+TimeoutStopSec=60
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=cockroachdb
+User=cockroachdb
+[Install]
+
+# NOTE: The settings for the ExecStart are the simplest that could possibly work. However,
+        on a production system, you’ll want to additionally specify the following:
+
+• --cache specifies the amount of memory to cache data in the KV store. It defaults to 128 MB, 
+    which is usually too small. You may specify an exact amount or a proportion of physical memory 
+    (0.5 for 50% of physical memory, for instance).
+    
+• --max-sql-memory specifies the amount of memory for the SQL engine. This includes sort 
+    and hash areas and intermediate data sets. This defaults to .25 (25% of physical memory).
+    
+• --locality includes information about the node’s physical location. These values can be used 
+    later when configuring multiregion deployment. So, for instance, to start a server in the 
+    us-west-1 region, us-west-1a zone with 35% of memory allocated to SQL memory and 35% allocated 
+    to KV store cache, our ExecStart might look like this:
+$$ ExecStart=/usr/local/bin/cockroach start 
+    --certs-dir=certs
+    --advertise-addr=gubuntu2 --join=gubuntu1,gubuntu2,gubuntu3
+    --locality=region=us-west-1,zone=us-west-1a
+    --max-sql-memory=.35 --cache=.35
+
+# start the service
+$ cockroachdb@gubuntu1:~$ sudo systemctl start cockroachdb
+
+# We now repeat these steps for the other nodes—gubuntu2 and gubuntu3. We make sure that the 
+  --advertise-addr listed in the cockroachdb.service file is different for each node in the cluster.
+
+*******************************************************
+# Initializing the Cluster: 
+# Once the CockroachDB service is running on each node, we can init the cluster. From the home machine:
+
+$ cockroach init --certs-dir=$HOME/cockroach/certs --host=gubuntu1
+$ cockroach sql --certs-dir=$HOME/cockroach/certs --host=gubuntu1         # connect to the cluster
+$ cockroach node status --certs-dir=$HOME/cockroach/certs --host=gubuntu2 # check nodes status
+
+# Creating the First User 
+ (To connect to the DB Console and to connect from SQL clients without the client root certificate,)
+
+$  cockroach sql --host=gubuntu1 --certs-dir=$HOME/cockroach/certs
+@@ root@gubuntu1:26257/defaultdb>
+   CREATE USER consoleAdmin WITH PASSWORD ‘EfV2ZwV1oHlsQdW9XW9ovKDx0vm6GB’; 
+
+# navigate to https://${nodeName}:8080 to visit the DB Console,
+
+
+*******************************************************
+# Installing a Load Balancer (On-Premise): 
+$ cockroach gen haproxy --certs-dir=$HOME/cockroach/certs --host=gubuntu1
+
+# if you want to modify the default haproxy settings
+$ cat haproxy.cfg
+
+# We copy haproxy.cfg to the load balancer node:
+$ scp haproxy.cfg cockroachdb@mubuntu:~
+
+# On the load balancer node (mubuntu in this case), we install the HAProxy software:
+$ sudo apt install haproxy
+
+# copy the config file that we copied over earlier into the standard location for the HAProxy service
+
+root@mubuntu:~# cd /etc/haproxy
+root@mubuntu:/etc/haproxy# cp haproxy.cfg haproxy.cfg.old
+root@mubuntu:/etc/haproxy# cp ~cockroachdb/haproxy.cfg .
+cockroachdb@mubuntu:~$ sudo systemctl restart haproxy
+
+# Back on the home system, confirm that you can connect to the cluster through the node balancer node:
+$ cockroach sql --host=mubuntu --certs-dir=$HOME/cockroach/certs
+
+# Configuring Regions and Zones:
+  For instance, if gubuntu2 was in the us-west-1 region, us-west-1a zone, then we’d
+  specify the following in the cockroachdb.service file:
+  
+$ ExecStart=/usr/local/bin/cockroach start --certs-dir=certs
+  --advertise-addr=gubuntu2 --join=gubuntu1,gubuntu2,gubuntu3
+  --locality=region=us-west-1,zone=us-west-1a
+

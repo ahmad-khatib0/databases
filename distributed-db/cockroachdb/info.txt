@@ -321,6 +321,16 @@ The CockroachDB software stack consists of five major layers:
   processing of low-level queries and updates on that data.
 
 
+Creating a Ballast File
+  In the event that the filesystem containing CockroachDB data files fills up, the CockroachDB 
+  system might be unable to start up. To mitigate this possibility, CockroachDB automatically 
+  creates a ballast file at node startup. Should disk space be exhausted, the ballast file can 
+  be removed, and the node can continue to function. The ballast file defaults to 1% of total disk 
+  capacity or 1 GiB, whichever is smaller. The size of the ballast file may be configured using 
+  the --store flag to cockroach start with a ballast-size field; this field accepts the same 
+  value formats as the size field.
+
+
 
 
 
