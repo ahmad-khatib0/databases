@@ -1,0 +1,265 @@
+ The primary region is the default region for all the tables in a database
+
+# Be aware that sometimes we might say database to refer to an entire CockroachDB deployment, 
+  but in this case, we are talking about databases as defined by CREATE DATABASE statements. 
+  Each of these databases can have different survival goals:
+  
+• Zone failure is the default survival goal. The database will remain available for reads and writes 
+  even if a node in a zone fails. Multiple zone failures might still be survivable provided you have 
+  configured enough nodes in the region and an appropriate replication factor.
+  
+• When a database is configured for region failure then the database will be fully available even 
+  in the event of a full region failure. To achieve this, data must be replicated to another region, 
+  which in most circumstances will reduce write performance.
+
+Tables in the database may have locality rules that determine how their data will be
+  distributed across zones:
+• A global table will be optimized for low-latency reads from any region.
+• A regional table will be optimized for low-latency reads and writes from a single region.
+• A regional by row table will have specific rows optimized for low-latency reads
+  and writes for a region. Different rows in the table can be assigned to specific regions.
+
+In essence, there are three types of tables in a CockroachDB cluster, listed in 
+  decreasing order of survivability and increasing order of performance:
+• GLOBAL
+• REGIONAL SURVIVE REGION
+• REGIONAL SURVIVE ZONE
+The reason it’s presented as two separate settings has to do with which combinations are sensible and 
+  how database and table-level settings interact. If there are any SURVIVE ZONE tables in your database, 
+  your application is probably going to break in a regional failure (unless you’re very careful about 
+  which tables you use and when), so mixing REGIONAL SURVIVE ZONE and REGIONAL SURVIVE REGION tables 
+  in one DB doesn’t make a lot of sense (why pay the performance cost of SURVIVE REGION for some 
+  tables if you’re still going to have downtime in a region failure?). That’s why the survival goals 
+  are a database-level setting. On the other hand, it does make sense to have mixtures of global 
+  and regional tables, so that’s a table-level setting.
+
+
+
+*******************************************************
+$ cockroach workload init movr <url>
+
+# Alternatively, you can run a local demo system that simulates a nine-node cluster with this command:
+$ cockroach demo movr init \
+    --nodes=9 \
+    --demo-locality=region=gcp-us-east1,az=gcp-us-east1a:\
+    region=gcp-us-east1,az=gcp-us-east1b:\
+    region=gcp-us-east1,az=gcp-us-east1c:\
+    region=gcp-us-west1,az=us-west-1a:\
+    region=gcp-us-west1,az=us-west-1b:\
+    region=gcp-us-west1,az=gcp-us-west1c:\
+    region=gcp-europe-west1,az=gcp-europe-west1a:\
+    region=gcp-europe-west1,az=gcp-europe-west1b:\
+    region=gcp-europe-west1,az=gcp-europe-west1c
+    
+# reveal the three regions and nine availability zones:
+$ movr> show regions; 
+
+/movr> \set display_format=records;
+/movr> SELECT raw_config_sql FROM crdb_internal.zones WHERE target='RANGE default';
+
+-[ RECORD 1 ]
+raw_config_sql    | ALTER RANGE default CONFIGURE ZONE USING+
+                  | range_min_bytes = 134217728,+
+                  | range_max_bytes = 536870912,+
+                  | gc.ttlseconds = 90000,+
+                  | num_replicas = 3,+
+                  | constraints = '[]',+
+                  | lease_preferences = '[]'
+
+# If we examine a range from a table in movr, we’ll see that it is indeed 
+  replicated over three nodes with one replica in each region:
+  
+/movr> \set display_format=records;
+/movr> SHOW RANGE FROM INDEX users@primary FOR ROW ('amsterdam','ae147ae1-47ae-4800-8000-000000000022');
+
+-[ RECORD 1 ]
+start_key               | NULL
+end_key                 | /"amsterdam"/"\xb333333@\x00\x80\x00\x00\x00\x00\x00\x00#"
+range_id                | 37
+lease_holder            | 5
+lease_holder_locality   | region=gcp-us-west1,az=us-west-1b
+replicas                | {1,5,9}
+replica_localities      | {
+                              "region=gcp-us-east1,az=gcp-us-east1a", 
+                              "region=gcp-us-west1,az=us-west-1b",
+                              "region=gcp-europe-west1,az=gcp-europe-west1c"
+                          }
+
+
+
+Converting to a Multiregion Database:
+/movr> ALTER DATABASE movr SET PRIMARY REGION="gcp-us-east1";
+# ALTER DATABASE PRIMARY REGION
+
+/movr> ALTER DATABASE movr ADD REGION "gcp-europe-west1";
+# ALTER DATABASE ADD REGION
+
+/movr> ALTER DATABASE movr ADD REGION "gcp-us-west1";
+# ALTER DATABASE ADD REGION
+
+SHOW REGIONS now reveals that movr is associated with each region and with a primary
+region of gcp-us-east1:
+/movr> \set display_format=records;
+/movr> show regions;
+
+-[ RECORD 1 ]
+region                      | gcp-europe-west1
+zones                       | {gcp-europe-west1a,gcp-europe-west1b,gcp-europe-west1c}
+database_names              | {movr}
+primary_region_of           | {} 
+
+-[ RECORD 2 ]
+regio                       | gcp-us-east1
+zones                       | {gcp-us-east1a,gcp-us-east1b,gcp-us-east1c}
+database_names              | {movr}
+primary_region_of           | {movr}
+
+-[ RECORD 3 ]
+region                      | gcp-us-west1
+zones                       | {gcp-us-west1c,us-west-1a,us-west-1b}
+database_names              | {movr}
+primary_region_of           | {}
+
+
+# We can see that each table in the movr database now is a REGIONAL BY TABLE IN PRIMARY REGION table:
+/movr> SELECT name,locality FROM crdb_internal."tables" 
+       WHERE schema_name='public' AND database_name='movr';
+
+name |                           locality
+-----------------------------+--------------------------------------
+users                            | REGIONAL BY TABLE IN PRIMARY REGION
+vehicles                         | REGIONAL BY TABLE IN PRIMARY REGION
+rides                            | REGIONAL BY TABLE IN PRIMARY REGION
+vehicle_location_histories       | REGIONAL BY TABLE IN PRIMARY REGION
+promo_codes                      | REGIONAL BY TABLE IN PRIMARY REGION
+user_promo_codes                 | REGIONAL BY TABLE IN PRIMARY REGION
+
+
+# As a consequence of distributing movr over three regions, CockroachDB creates a
+  new replication zone for the movr database, with a replication factor of five:
+/movr> \set display_format=records;
+/movr> SELECT raw_config_sql FROM crdb_internal.zones WHERE target='DATABASE movr';
+
+
+
+# Configuring Regional by Row:
+  Let’s set it up. For a REGIONAL BY ROW table, CockroachDB expects to find a hidden CRDB_REGION column 
+  that maps to one of the regions assigned to the database. We can alter the application so that it 
+  inserts an appropriate value into the row when it is created, or we could to use a computed column. 
+  Here we define such a computed crdb_internal_region column for the users table:
+
+/movr> ALTER TABLE users ADD COLUMN crdb_region crdb_internal_region AS (
+        CASE
+          WHEN city IN ('new york', 'boston', 'washington dc') THEN 'gcp-us-east1'
+          WHEN city IN ('san francisco', 'seattle', 'los angeles') THEN 'gcp-us-west1'
+          WHEN city IN ('amsterdam', 'paris', 'rome') THEN 'gcp-europe-west1'
+          ELSE 'gcp-us-east1'
+        END
+       ) STORED;
+       
+# now We can see that the column is mapping correctly:
+SELECT DISTINCT city,crdb_region FROM users;
+
+city              |          crdb_region
+----------------+-------------------
+boston                     | gcp-us-east1
+new york                   | gcp-us-east1
+rome                       | gcp-europe-west1
+.....................................
+
+# Now that the CRDB_REGION column is defined, we can set the table LOCALITY to
+  REGIONAL BY ROW, after first making the column NOT NULL:
+  
+/movr> ALTER TABLE users ALTER COLUMN crdb_region SET NOT NULL;
+/movr> ALTER TABLE users SET LOCALITY REGIONAL BY ROW;
+
+# The shift to REGIONAL BY ROW is implemented by a set of background jobs. Here we can 
+  see that the core jobs have been completed, and a garbage collection is still in progress:
+  
+/movr> \set display_format=records;
+
+/movr> SELECT job_type,description,status FROM [show jobs] WHERE description LIKE '%REGIONAL%';
+-[ RECORD 1 ]
+job_type         | SCHEMA CHANGE
+description      | ALTER TABLE movr.public.users SET LOCALITY REGIONAL BY ROW
+status           | succeeded
+
+-[ RECORD 2 ] 
+job_type         | SCHEMA CHANGE
+description      | CLEANUP JOB for 'ALTER TABLE movr.public.users SET LOCALITY REGIONAL BY ROW' 
+status           | succeeded
+
+-[ RECORD 3 ]
+job_type         | SCHEMA CHANGE GC
+description      | GC for CLEANUP JOB for 'ALTER TABLE movr.public.users SET LOCALITY REGIONAL BY ROW'
+status           | running
+
+
+# Under the hood, the primary index for the users table now includes the CRDB_REGION column:
+/movr> \set display_format=table;
+
+SELECT DISTINCT index_name,column_Name FROM crdb_internal.index_columns WHERE descriptor_name='users';
+index_name | column_name
+-------------+--------------
+primary    | crdb_region
+primary    | city
+primary    | id
+
+
+# check by looking at the distribution of ranges for a row in Amsterdam
+SHOW RANGE FROM INDEX users@primary FOR ROW ('gcp-europe-west1','amsterdam', 'uuid-value');
+
+# We can see that there are three replicas in Europe and one replica each in the other two zones. 
+  This maps to the zone survival goal—we can sustain a failure of any one node in any region, but 
+  should the entire gcp-Europe-west1 region fail, then the table would be unavailable
+
+# Compare that to a row for a New York user:
+/movr> SHOW RANGE FROM INDEX users@primary FOR ROW ('gcp-us-east1','new york','uuid-value');
+
+
+# We should repeat the process of assigning CRDB_REGION and setting REGIONAL BY ROW
+  locality for the other transactional tables that are region-specific: RIDES, VEHICLES,
+  VEHICLE_LOCATION_HISTORIES, and USER_PROMO_CODES. The PROMO_CODES table is not region-specific—promo 
+  codes are equally applicable in every location. We should probably make this a GLOBAL table since 
+  it is read from every region and not subject to high transaction rates:
+
+  /movr> ALTER TABLE promo_codes SET LOCALITY GLOBAL;
+
+# check all localities status in the database
+SELECT name,locality FROM crdb_internal."tables" WHERE schema_name='public' AND database_name='movr';
+
+name                  |                  locality
+-----------------------------+------------------
+users                      | REGIONAL BY ROW
+vehicles                   | REGIONAL BY ROW
+rides                      | REGIONAL BY ROW
+vehicle_location_histories | REGIONAL BY ROW
+promo_codes                | GLOBAL
+user_promo_codes           | REGIONAL BY ROW
+
+
+
+
+
+
+
+Setting Regional Survival Goal:
+# To achieve global high availability, we need to move to a regional 
+  survival goal. We can do that with a single command:
+/movr> ALTER DATABASE movr SURVIVE REGION FAILURE;
+       ALTER DATABASE SURVIVE
+
+# check the process
+SELECT description,status FROM [show jobs] WHERE description like '%SURVIVE%';
+
+# To see what exactly has changed, let’s look at the distribution of ranges for an Amsterdam row. 
+  You might recall that previously this row had three replicas in the EU region and one replica 
+  in each of the US regions. Let’s see what it looks like now:
+  
+$ SHOW RANGE FROM INDEX users@primary FOR ROW ('gcp-europe-west1','amsterdam','uuid-value');
+
+# Now we have two replicas in gcp-Europe-west1, two replicas in us-west1, and one replica in 
+  us-east1. If any region fails, there will still be a majority of replicas available—hence we can 
+  survive a region failure. The trade-off is write performance; since only a minority of replicas exist 
+  in the primary region, we cannot achieve Raft consensus without another region receiving the write.
+
