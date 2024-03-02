@@ -1,0 +1,56 @@
+
+Backup Scheduling and Configuration:
+The following guidelines are suggested as general-purpose best practices. For any edition : 
+• Perform a full backup at least once within each garbage collection window (by default, 25 hours). 
+  The parameter gc.ttlseconds determines how long data will be retained before being discarded. In 
+  the event of a data corruption issue, you will always be able to retrieve data up to gc.ttlseconds 
+  in the past. You want to make sure that there is no gap between the last backup and the 
+  current garbage collection window.
+  
+• Use the AS OF SYSTEM TIME clause to base the backup of a snapshot of historical data rather than 
+  on the current state of the database. Without AS OF SYSTEM TIME, the backup will attempt to read 
+  the current state of data ranges and may need to restart reads if there are unresolved write 
+  intents or block if the read encounters an uncommitted write. By specifying a SYSTEM TIME in the 
+  very recent past (10 seconds is recommended), you avoid these conflicts, which results in a 
+  faster backup with less impact on other sessions.
+  
+• Use cloud storage for backup destinations when possible. Directing backups to destinations in the 
+  same region as your cluster can optimize backup performance by reducing network latency but 
+  raises the risk that an outage might affect both the cluster and the cloud store. Most cloud stores 
+  offer geo-redundant options in which data is replicated to multiple regions: these would be 
+  preferred destinations for important backups.
+
+For an Enterprise edition cluster:
+• Use a combination of full and incremental backups to achieve a balance between overhead, frequency, 
+  and time to recover. The more frequently an incremental backup is executed, the lower its overhead 
+  (because it is backing up fewer changes). Therefore, you can issue incremental backups reasonably 
+  frequently once per hour is a typical choice.
+  
+• Use the WITH REVISION HISTORY if you want to be able to recover a backup to a point in time.
+
+• Use CockroachDB scheduling instead of an external scheduler such as cron. The CockroachDB 
+  scheduler understands some of the nuances of the CockroachDB backup system, such as using 
+  the AS OF SYSTEM TIME clause to reduce overhead.
+
+
+The most important mitigation that CockroachDB offers for these categories of errors ( Human Errors )
+  is the ability to access data AS OF SYSTEM TIME. By default, “old” versions of data are maintained 
+  within the system for at least the time period specified by the replication zone setting 
+  gc.ttlseconds. By default, this parameter is set to 90,000 seconds (25 hours). This allows 
+  us to retrieve data after it has been modified for over a day.
+
+
+AS OF SYSTEM TIME can be used to recover from a variety of data-corruption scenarios:
+• Fine-grained changes to a table can be reversed by replacing the table’s contents with that of a
+  simple SELECT query with a specific AS OF SYSTEM TIME. Individual row changes can similarly be reversed.
+  
+• A backup can be taken with the AS OF SYSTEM TIME clause. This backup can effectively represent 
+  the state of the database or selected tables at the time prior to corruption. It sounds kind of 
+  amazing to be restoring from a backup taken after a logical corruption, but it’s a powerful way 
+  of undoing any undesirable changes.
+  
+• If a backup is created with the WITH REVISION HISTORY option, then the backup
+  can be restored to a point in time. So even if the backup was taken after the
+  logical corruption, it could still be restored to a point before that corruption.
+
+  

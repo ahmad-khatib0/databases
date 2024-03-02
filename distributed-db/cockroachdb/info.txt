@@ -331,6 +331,13 @@ Creating a Ballast File
   value formats as the size field.
 
 
+It is also best practice to use the AS OF SYSTEM TIME clause with a small offset (–10 s is recommended) 
+  to reduce overhead and conflicts during the backup process. Without AS OF SYSTEM TIME, the backup 
+  will attempt to read the current state of all ranges, which may involve blocking on uncommitted 
+  transactions or retrying reads when necessary. By using AS OF SYSTEM TIME, these conflicts are 
+  eliminated, resulting in a faster backup with less impact on the production database.
+
+
 
 
 
