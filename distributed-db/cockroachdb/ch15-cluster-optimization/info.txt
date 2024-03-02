@@ -1,0 +1,79 @@
+
+During application development, the tuning process involves ensuring that individual SQL statements 
+  and transactions are optimized and correct. In production, the tuning process is somewhat 
+  different—we are looking for SQL statements and trans‐ actions that appear to be consuming a 
+  higher than expected proportion of system resources and looking for ways that these might be resolved.
+
+Hot ranges are ranges that are heavily hit by specific queries. In the replication dashboard, 
+  you might see one node with significantly higher query rates than the others,
+
+By default, CockroachDB will split ranges based on load, providing that kv.range_split.by_load_enabled 
+  is set to true. So if it’s not already set to true, you probably want to do so now:
+SET CLUSTER SETTING kv.range_split.by_load_enabled=true;
+
+
+The setting kv.range_split.load_qps_threshold defines when a range will be split.
+  By default, it splits when it exceeds 2,000 queries per second (QPS). In our output, it
+  looks like that hot range is at about 1,690 QPS. Maybe we should lower that value so
+  that ranges will split at a lower query rate—say 400 QPS:
+movr> SET CLUSTER SETTING kv.range_split.load_qps_threshold = 400;
+
+For instance, if we have good reason to believe that Twitter user 50 is responsible for our 
+  hotspots, we could issue a command like this to split up their tweets into separate ranges:
+movr> ALTER TABLE tweet_likes SPLIT AT VALUES (50,1),(50,2),(50,9),(50,20);
+
+
+
+More generally, you can avoid cross-region traffic in the following ways:
+• REGIONAL BY ROW tables can be used to locate rows in the regions in which they are most likely to 
+  be accessed, thus reducing the chance that cross-region lookups will be needed. This is 
+  particularly important for rows that are frequently updated and which might otherwise require 
+  cross-regional consensus.
+• GLOBAL tables are perfect for relatively static tables that are read from every location.
+• Reading from regional tables can be enhanced by using “follower” reads (e.g., a SELECT with AS OF 
+  SYSTEM TIME). Nonvoting replicas of data are maintained outside the core region, and if a SELECT 
+  uses AS OF SYSTEM TIME, these slightly “stale” copies can be read locally.
+
+
+As with virtually all database systems, CockroachDB uses memory to avoid disk I/O.
+  There are broadly two areas of memory that each node configures:
+• The KV store cache keeps copies of blocks of KV store data in memory, avoiding disk I/Os when 
+  data is read from the store. Its size is defined by the --cache startup parameter.
+  
+• The SQL cache includes sort and hash areas and intermediate data sets. Its size is
+  defined by the --max-sql-memory startup parameter.
+
+It’s not easy to size these caches precisely, so most of the time, we recommend assigning about 
+  35% of total system memory to each cache. These values are not the default settings, so it’s 
+  important that when you configure a production node, you explicitly allocate the memory areas, 
+  as in the following fragment of a system start file:
+  
+ExecStart=/usr/local/bin/cockroach start --certs-dir=certs
+  --advertise-addr=gubuntu2 --join=gubuntu1,gubuntu2,gubuntu3
+  --locality=region=us-west-1,zone=us-west-1a
+  --max-sql-memory=.35 --cache=.35
+
+We can measure the effectiveness of the KV store cache by examining the metrics rocksdb.block.cache.hits 
+  and rocksdb.block.cache.misses. These metrics reflect the number of times a wanted piece of data was 
+  found in the cache and the number of times it was not found, resulting in a disk I/O:
+
+defaultdb> SELECT * FROM crdb_internal.node_metrics 
+WHERE name IN (
+  'rocksdb.block.cache.usage', 'rocksdb.block.cache.hits', 'rocksdb.block.cache.misses'
+);
+
+
+# In a self-hosted deployment, you can use the vmstat command to show available memory:
+$ vmstat -s
+
+# You should pay attention to active memory, which represents memory currently allocated to a 
+  process, and used swap, which indicates how much memory has been swapped to disk. If active memory 
+  is approaching total memory, you may be about to experience a memory shortage. Used swap should 
+  generally be zero. Indeed, the CockroachDB team recommends completely disabling virtual 
+  memory on production machines.
+
+
+# On a self-hosted cluster, you can look at raw OS statistics to determine if I/O is problematic:
+$ iostat -xm -o JSON sdc 5 2 | jq
+
+
