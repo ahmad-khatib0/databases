@@ -1,0 +1,80 @@
+
+ExecStart=/usr/local/bin/cockroach start --certs-dir=certs
+  --advertise-addr=gubuntu1.local
+  --join=gubuntu1.local,gubuntu2.local,gubuntu3.local
+  --locality=region=us-east-1,zone=us-east-1a
+  --log-config-file=log-config.yaml
+
+Log Configuration
+the YAML file (log-config.yaml) has four sections:
+
+file-defaults
+  Defines the defaults inherited by all file sinks.
+fluent-defaults
+  Defines the defaults inherited by all Fluentd sinks.
+sinks
+  Defines the specific sinks that are configured, the channels to which they are
+  associated, and any overrides on those sinks.
+capture-stray-errors
+  Defines what happens to outputs that are not specifically assigned to a channel.
+  This would include stack traces and other “panicky” outputs from CockroachDB.
+
+
+The cockroach debug check-log-config command returns a summary of the current configuration and 
+  a URL to a graphical visualization of the current config: cockroach debug check-log-config
+
+
+Using a network logging destination is good practice, especially for audit logging.
+  Attackers frequently remove edit logs to hide evidence of their attacks. Sending the
+  logs to a network destination makes it harder for them to do this.
+
+CockroachDB supports upgrades only from one major version to the next. So if you are on 
+  version 20.1 and wish to upgrade to version 22.0, you must first upgrade to version 21.x.
+
+
+
+Preserving a Downgrade Option
+  By default, an upgrade will perform certain changes that cannot be undone. This might be the 
+  result of changes to internal data structures or because some new features might cause changes 
+  to schema objects that have no analog in previous versions. To make sure that a downgrade is 
+  possible, use the cluster setting cluster.preserve_downgrade_option. This option will disable 
+  new features following the upgrade but will allow a downgrade if needed.
+  Prior to upgrade, set the cluster.preserve_downgrade_option:
+  
+defaultdb> SET CLUSTER SETTING cluster.preserve_downgrade_option = '21.1';
+  
+  When you are content that the new version is stable and wish to enable new features that cannot 
+  be downgraded, reset the cluster setting:
+defaultdb> RESET CLUSTER SETTING cluster.preserve_downgrade_option;
+
+
+Decommissioning Nodes
+  Removing a node from a cluster—decommissioning a node—requires that we first migrate all range 
+  replicas to other nodes. Once that has happened, the node can be shut down and will be removed 
+  from the cluster after it has been idle for server.time_until_store_dead, which defaults to 
+  five minutes. You can decommission a node only if there are other nodes available to meet replication 
+  requirements. For instance, if your replication factor is three, then you cannot decommission a 
+  node in a three-node cluster without first adding the fourth node. Before decommissioning, make 
+  sure that there are no under-replicated or unavailable ranges (this is something you should 
+  be keeping an eye on at all times!). 
+  Make sure that you will have enough capacity after removing the node(s). For example, if you have 
+  a six-node cluster, you would not want to decommission if your peak CPU load is above 66%. 
+  (Because 66% of a six-node cluster is 80% of a five-node cluster, and above that point, you 
+  cannot afford to lose a single node without disruption.)
+# Decommission the node by running the cockroach node decommission command
+  from the node to be decommissioned:
+$ cockroach node decommission --self --certs-dir=/var/lib/cockroachdb/certs --host=gubuntu4.local
+
+Clock Synchronization Errors
+  Einstein may have demonstrated that time is relative, but for a CockroachDB cluster, time needs 
+  to be—within reason—absolute. Any node that finds itself more than 500 ms (or the value of the 
+  startup parameter --max-offset) away from at least half of the nodes in the cluster will remove 
+  itself. You’ll see an error something like this in the logs:
+# F211023 03:31:36.974367 81 1@server/server.go:322 [n1] 10 clock
+# synchronization error: this node is more than 500ms away from
+# at least half of the known nodes (0 of 1 are within the offset)
+
+If half or more of the nodes of the cluster lose connectivity, or if half the replicas in
+  important system ranges are rendered unavailable by node failures, then the entire
+  cluster will be unavailable, even if some nodes are still running correctly.
+
