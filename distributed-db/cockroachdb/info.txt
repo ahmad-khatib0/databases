@@ -21,8 +21,8 @@ Partition tolerance
   Internet pioneers such as Amazon, however, believed that availability was more
   important than strict consistency. Amazon developed a database system—Dynamo—
   that implemented “eventual consistency.” In the event of a partition, all zones would
-  continue to have access to the system, but when the partition was resolved, inconsis‐
-  tencies would be reconciled—possibly losing data in the process.
+  continue to have access to the system, but when the partition was resolved, inconsistencies
+  would be reconciled—possibly losing data in the process.
 
 
 CockroachDB was designed to support the following attributes:
@@ -30,7 +30,7 @@ CockroachDB was designed to support the following attributes:
 Scalability
   The CockroachDB distributed architecture allows a cluster to scale seamlessly as
   workload increases or decreases. Nodes can be added to a cluster without any
-  manual rebalancing, and performance will scale predictably as the number of
+  manual re-balancing, and performance will scale predictably as the number of
   nodes increases.
   
 High availability
@@ -39,8 +39,8 @@ High availability
   
 Consistency
   CockroachDB provides the highest practical level of transactional isolation and
-  consistency. Transactions operate independently of each other and, once com‐
-  mitted, transactions are guaranteed to be durable and visible to all sessions.
+  consistency. Transactions operate independently of each other and, once committed,
+  transactions are guaranteed to be durable and visible to all sessions.
   
 Performance
   The CockroachDB architecture is designed to support low-latency and high-throughput 
@@ -68,8 +68,8 @@ You may be thinking, “This thing can do everything!” However, it’s worth p
 out that CockroachDB was not intended to be all things to all people. In particular:
 
 CockroachDB prioritizes consistency over availability
-  We saw earlier how the CAP theorem states that you have to choose either con‐
-  sistency or availability when faced with a network partition. Unlike “eventually”
+  We saw earlier how the CAP theorem states that you have to choose either consistency or 
+  availability when faced with a network partition. Unlike “eventually”
   consistent databases such as DynamoDB or Cassandra, CockroachDB guarantees
   consistency at all costs. This means that there are circumstances in which a
   CockroachDB node will refuse to service requests if it is cut off from its peers. A
@@ -125,8 +125,8 @@ MVCC Principles
   view of information even while the information is being modified by a concurrent transaction.
   
   The CockroachDB implementation limits the ability of transactions to read from
-  previous versions. For instance, if a read transaction commences after a write transac‐
-  tion has begun, it may not be able to read the original version of the row because
+  previous versions. For instance, if a read transaction commences after a write transaction
+  has begun, it may not be able to read the original version of the row because
   it might be inconsistent with other data already read or that will be read later in
   the transaction. This may result in the read transaction “blocking” until the write
   transaction commits or aborts.
@@ -160,8 +160,8 @@ The TxnWaitQueue object tracks the transactions that are waiting and the transac
   range associated with the transaction. When a transaction commits or aborts, the
   TxnWaitQueue is updated, and any waiting transactions are notified.
 
-Transaction conflicts can also occur between readers and writers. If a reader encoun‐
-  ters an uncommitted write intent that has a lower (e.g., earlier) timestamp than the
+Transaction conflicts can also occur between readers and writers. If a reader encounters
+  an uncommitted write intent that has a lower (e.g., earlier) timestamp than the
   consistent read timestamp for the read, then a consistent read cannot be completed.
   This can happen if a modification occurs between the time a read transaction starts
   and the time it attempts to read the key concerned. In this case, the read will need to
@@ -172,7 +172,7 @@ These “blocked reads” can be avoided in the following circumstances:
   transaction may need to restart if the push invalidates any previous work in the transaction.
 • Stale reads that use AS OF SYSTEM TIME will not block 
   (as long as the transaction does not exceed the specified staleness). 
-• In multiregion configurations. GLOBAL tables use a modified transaction protocol 
+• In multi-region configurations. GLOBAL tables use a modified transaction protocol 
   in which reads are not blocked by writes.
 
 
@@ -336,12 +336,4 @@ It is also best practice to use the AS OF SYSTEM TIME clause with a small offset
   will attempt to read the current state of all ranges, which may involve blocking on uncommitted 
   transactions or retrying reads when necessary. By using AS OF SYSTEM TIME, these conflicts are 
   eliminated, resulting in a faster backup with less impact on the production database.
-
-
-
-
-
-
-
-
 
