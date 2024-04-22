@@ -1,0 +1,139 @@
+Engineering principles: 
+• Zero-touch automation for everything (if it’s manual – and you have to do it multiple 
+  times a month – it should be automated)
+
+• Project-agnostic solutions (defined in the configuration to avoid re-development for new
+  projects, any tool/module should be reusable)
+
+• IaC (infrastructure should be immutable where possible and defined as code; provisioning tools should be reusable)
+
+• Continuous delivery (CD) with continuous integration (CI) (common approaches and
+  environments across your delivery cycle; any service should be deployable immediately)
+
+• Reliability and security validated at every release (penetration testing, chaos testing, and more
+  should be added to the CI/CD pipeline; always identify the point of flavors at your earliest)
+
+• Be data-driven (real-time data should be utilized to make decisions)
+
+
+Advantages of hierarchical databases
+  One of the main advantages of hierarchical databases is their speed and efficiency. Because data is
+  organized in a tree-like structure and linked using pointers, hierarchical databases can quickly retrieve
+  data by following these links. This makes them ideal for applications that require fast access to large
+  amounts of data, such as banking and finance systems.
+
+Disadvantages of hierarchical databases
+  One major disadvantage of hierarchical databases is their inflexibility. Because data is organized in a
+  strict hierarchy, it can be difficult to add or modify data without disrupting the structure of the database.
+  This can make it challenging to adapt to changing business needs or to integrate with other systems.
+
+Network database model
+  The network database model is a type of DBMS that is designed to store and query data in a hierarchical
+  structure. It was first introduced in the late 1960s as an improvement over the earlier hierarchical
+  database model, and it was widely used throughout the 1970s and 1980s.
+  One of the key features of the network database model is the ability to represent complex relationships
+  between entities. For example, an entity in the network can have multiple parents or children, and
+  relationships can be defined between entities that are not directly connected.
+
+The network database model also has some limitations. One of the main challenges with this model is that it 
+  can be difficult to maintain consistency and integrity when there are multiple relationships between entities. 
+  For example, if a book entity is linked to multiple borrower entities, it can be difficult to ensure that 
+  the borrower records are updated correctly when the book is checked out or returned.
+
+OO databases
+  The OO database model is a type of DBMS that uses an OOP language to create, store, and retrieve data. 
+  It is based on the principles of OOP, which means it treats data as objects. In this model, data is
+  represented as objects that have attributes and methods, just as in OOP.
+  One of the main advantages of the OO database model is that it allows for complex data structures
+  to be created and stored in the database. This is because objects can be nested inside other objects,
+  allowing for more complex relationships between data. 
+  One of the challenges of the OO database model is that it can be difficult to map it onto a traditional
+  relational DBMS (RDBMS). This is because the OO model uses a different structure and different
+  operations than a traditional RDBMS. Some OO databases have attempted to bridge this gap by
+  providing a relational view of the OO data
+  One potential disadvantage of the OO database model is that it can be less efficient than a traditional RDBMS 
+  when it comes to queries that involve complex joins or aggregations. This is because the OO model is optimized 
+  for accessing individual objects, rather than for performing complex queries across multiple objects.
+
+Document-oriented databases
+  Document-oriented databases are designed to store data in a document format, such as JSON, BSON, or XML. 
+  Each document can have a different structure, which makes them flexible and easy to scale horizontally. 
+  Document databases are often used for web applications, content management systems (CMSs), and e-commerce sites.
+
+Column-family databases
+  Column-family databases are designed to store data in column families, which are groups of columns that
+  are stored together. Each column family can have a different schema, allowing for flexible and efficient
+  data storage. Column-family databases are often used for large-scale data processing and analytics.
+  Examples: Apache Cassandra, Apache HBase, Amazon Keyspaces, Azure Cosmos DB.
+
+Graph databases
+  Graph databases store data in a graph structure, with nodes representing entities and edges representing 
+  relationships between them. Graph databases are highly efficient for querying complex relationships between 
+  data points, making them popular for use cases such as social networks and recommendation engines.
+
+
+Data warehouses
+  A data warehouse is a large, centralized repository of data that is used for storing and analyzing data
+  from multiple sources. It is designed to support business intelligence (BI) activities, such as reporting,
+  data mining, and online analytical processing (OLAP).
+
+Data modeling
+  Data modeling is the process of designing the structure of the data in a data warehouse. The goal of
+  data modeling is to create a model that is optimized for reporting and analysis.
+  The dimensional model is the most common data modeling technique used in data warehouses. It consists
+  of fact tables and dimension tables, which are organized into a star schema or a snowflake schema.
+  A fact table contains the measures or metrics that are being analyzed, such as sales revenue or customer
+  count. Each row in the fact table represents a specific event, such as a sale or a customer interaction.
+  The fact table also contains foreign keys that link to dimension tables. Dimension tables contain the attributes 
+  that describe the data in the fact table. For example, a customer dimension table might contain attributes such 
+  as customer name, address, and phone number. The dimension tables are linked to the fact table through foreign 
+  keys. The star schema is a simple and intuitive data model that is easy to understand and use. In a star
+  schema, the fact table is at the center of the model, with the dimension tables radiating out from it
+  like the points of a star. This makes it easy to query the data and perform OLAP analysis.
+  The snowflake schema is a more complex version of the star schema, where the dimension tables are
+  normalized into multiple tables. This can make the schema more flexible and easier to maintain, but
+  it can also make queries more complex and slower to execute.
+
+Here are some specific scenarios where a data warehouse can be particularly beneficial:
+-- Large enterprises: Large enterprises often have massive amounts of data generated from various sources, 
+   such as customer interactions, sales transactions, and operational systems. A data warehouse can help these 
+   enterprises store and analyze this data efficiently, enabling them to make well-informed business decisions.
+   
+-- Data-driven organizations: Organizations that rely heavily on data to make decisions can
+   benefit from a data warehouse. By centralizing data from multiple sources, a data warehouse
+   can provide a single source of truth (SSOT) for data analysis, which can help organizations
+   avoid inconsistencies and inaccuracies in their data.
+   
+-- Businesses with complex data structures: Businesses with complex data structures, such as
+   those with multiple business units (BUs) or locations, can benefit from a data warehouse. By
+   organizing data into a dimensional model, a data warehouse can simplify the process of querying
+   and analyzing data, enabling businesses to gain insights into their operations more easily.
+   
+-- Businesses with a need for real-time data: While data warehouses are not designed for real-time data 
+   processing, they can be useful for businesses that need to store and analyze large amounts of data in 
+   near real time. By using technologies such as change data capture (CDC), businesses can continuously 
+   update their data warehouse with new data, enabling them to analyze data more quickly.
+
+-- Businesses with regulatory requirements: Businesses that are subject to regulatory requirements,
+   such as financial institutions, can benefit from a data warehouse. By storing data in a centralized
+   location, a data warehouse can help these businesses comply with regulations that require them
+   to maintain historical data for a certain period.
+
+Data lakes Architecture 
+  At its core, a data lake is an architectural approach to storing data that allows for the aggregation of
+  large volumes of disparate datasets in their original formats. This means that data can be ingested
+  from a wide range of sources, including databases, data warehouses, streaming data sources, and even
+  unstructured data such as social media posts or log files. The data is typically stored in a centralized
+  repository that spans multiple servers or nodes and is accessed using a distributed filesystem such
+  as Hadoop Distributed File System (HDFS), Amazon Simple Storage Service (Amazon S3), or
+  Microsoft Azure Data Lake Storage.
+
+Data ingestion and processing
+  Data ingestion is the process of bringing data into the data lake from various sources. This process
+  can be automated using tools such as Apache NiFi, StreamSets, or Apache Kafka, which allow for the
+  creation of pipelines that can ingest data from a wide range of sources, transform it as needed, and
+  load it into the data lake. Once the data is ingested, it can be processed and analyzed using a variety
+  of tools and frameworks, such as Apache Spark, Apache Hive, or Apache Flink.
+
+
+
