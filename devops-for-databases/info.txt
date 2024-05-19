@@ -136,4 +136,11 @@ Data ingestion and processing
   of tools and frameworks, such as Apache Spark, Apache Hive, or Apache Flink.
 
 
+The database expert should ensure that the database is compliant with regulations such as HIPAA,
+  PCI-DSS, and GDPR. They should ensure that the database is audited regularly to ensure compliance
+  with regulations.
+
+In traditional database management, database changes were often tested manually, which was a time-consuming 
+  and error-prone process. With DevOps, teams can use automated testing tools, such as Selenium or JMeter, 
+  to run tests and validate changes, catching errors early in the development cycle.
 

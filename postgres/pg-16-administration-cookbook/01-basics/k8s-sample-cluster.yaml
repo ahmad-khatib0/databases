@@ -1,0 +1,15 @@
+# apply the cloudnative-pg file first
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: sample-cluster
+
+spec:
+  instances: 3
+  storage:
+    size: 1Gi
+#
+#
+# The sample-cluster-rw Service lets you connect to the primary node for read/write operations,
+# sample-cluster-ro to standbys only for read-only operations, and sample-cluster-r to any
+# node (including the primary) for read operations.

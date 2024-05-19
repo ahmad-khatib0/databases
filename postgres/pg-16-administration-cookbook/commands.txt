@@ -1,0 +1,5 @@
+# connect
+++ sudo -u postgres psql
+++ su -c "psql" - postgres
+++ psql -U gitea -d giteadb
+

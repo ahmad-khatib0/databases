@@ -1,0 +1,12 @@
+instances:
+  - Name: kennel
+    backup: karma
+    location: main
+    node: 1
+    role:
+      - primary
+  - Name: karma
+    location: main
+    node: 3
+    role:
+      - barman

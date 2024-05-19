@@ -1,0 +1,61 @@
+Security
+  Access to PostgreSQL is controllable via host-based access rules. Authentication is flexible and pluggable, 
+  allowing for easy integration with any external security architecture. The latest Salt-ed Challenge Response 
+  Authentication Mechanism (SCRAM) provides full 256-bit protection.
+
+PostgreSQL 16 can achieve significantly more than 1,000,000 reads per second on a 4-socket server, and it 
+  benchmarks at more than 50,000 write transactions per second with full durability, depending upon your 
+  hardware. With advanced hardware, even higher levels of performance are possible.
+  
+PostgreSQL provides multi-node read scalability using the Hot Standby feature. Transparent multi-node write 
+  scalability is under active development. The starting point for this is EDB Postgres Distributed 
+  (formerly Bi-directional replication) as it allows transparent and efficient synchronization of reference 
+  data across multiple servers. Other forms of write scalability have existed for more than a decade, 
+  starting from the PL/Proxy language, Greenplum and Citus.
+
+== host   all     all     0.0.0.0/0        scram-sha-256 
+   The following are the parameters required for SCRAM-SHA-256-encrypted passwords:
+   1- Type: For this, host means a remote connection.
+   2- Database: For this, all means for all databases. Other names match exactly, except when prefixed with a
+      plus (+) symbol, in which case we mean a group role rather than a single user. You can also specify a 
+      comma-separated list of users or use the @ symbol to include a file with a list of users. You can even 
+      specify sameuser so that the rule matches when you specify the same name for the user and database.
+   3- User: For this, all means for all users. Other names match exactly, except when prefixed with a plus 
+      (+) symbol, in which case we mean a group role rather than a single user. You can also specify a 
+      comma-separated list of users, or use the @ symbol to include a file with a list of users.
+   4- CIDR-ADDRESS : This consists of two parts: an IP address and a subnet mask. The subnet mask is specified 
+      as the number of leading bits of the IP address that make up the mask. Thus, /0 means 0 bits of the IP 
+      address so that all IP addresses will be matched. For example, 192.168.0.0/24 would mean matching the 
+      first 24 bits, so any IP address of the 192.168.0.x form would match. You can also use samenet or samehost.
+   5- Method: For this, scram-sha-256 means that PostgreSQL will ask the client to provide a password encrypted 
+      with SCRAM-SHA-256. A common choice is peer, which is enabled by default and described in the There’s 
+      more... section of this recipe. Another common (and discouraged!) setting is trust, which effectively means 
+      no authentication. Other authentication methods include GSSAPI, SSPI, LDAP, RADIUS, and PAM. PostgreSQL
+      connections can also be made using SSL, in which case client SSL certificates provide authentication. 
+      See the Using SSL certificates to authenticate the client recipe in Chapter 6, Security, for more details.
+
+╒═══════════════════════════════════════════════════════════════════════════════════════════════════╕
+  When using a Unix socket connection, the client is another process running on the same host;      
+  therefore, Postgres can reliably get the OS username under which the client is running. The logic 
+  of peer authentication is to allow a connection attempt if the client’s OS username is identical  
+  to the database username being used for the connection. Hence, if there is a database user with   
+  exactly the same name as an OS user, then that user can benefit from password-less authentication 
+└───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+There are two types of help commands, which are as follows:
+• \?: This provides help on psql meta-commands.
+• \h: This provides help on specific SQL commands.
+
+Check out some other useful features of psql, which are as follows:
+• Informational metacommands, such as \d, \dn, and more
+• Formatting, for output, such as \x
+• Execution timing using the \timing command
+• Input/output and editing commands, such as \copy, \i, and \o
+• Automatic startup files, such as .psqlrc
+• Substitutable parameters (variables), such as \set and \unset
+• Access to the OS command line using \!
+• Crosstab views with \crosstabview
+• Conditional execution, such as \if, \elif, \else, and \endif
+
+
+ 

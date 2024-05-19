@@ -1,0 +1,104 @@
+
+******************************************************************
+                          Connection 
+******************************************************************
+
+=== psql "user=myuser host=myhost port=5432 dbname=mydb password=mypasswd"
+=== psql postgresql://myuser:mypasswd@myhost:5432/mydb    ( Uniform Resource Identifier (URI) format )
+
+=== SELECT current_database();
+=== SELECT current_user;            # shows current user id
+### shows the IP address and port of the current connection,  works unless you're using Unix sockets (shows null)
+=== select inet_server_addr(), inet_server_port(); 
+=== SELECT version();               # or:  \conninfo            
+
+=== Rather than using TCP/IP to localhost, it is usually better to use a Unix socket connection, which is attempted 
+    if the host begins with a slash (/) and the name is presumed to be a directory name (the default is /tmp).
+
+=== Once you’ve connected, each connection can have one active transaction at a time and one fully
+    active statement at any time.
+
+
+******************************************************************
+            Enabling access for network/remote users
+******************************************************************
+=== 1- in postgresql.conf add:   listen_addresses = '*'
+    2- in pg_hba.conf            host   all     all     0.0.0.0/0        scram-sha-256
+
+=== A socket is effectively a filesystem path that processes running on the same host can use for two-way 
+    communication. The PostgreSQL server process can see the OS username under which the client is running, 
+    and authenticate the client based on that. This is great, but unfortunately only applies to the special 
+    case when the client and the server are running on the same host. For all the remaining cases,
+
+
+******************************************************************
+            Using the psql query and scripting tool
+******************************************************************
+=== psql -c "SELECT current_time"       # one time command 
+=== psql -f examples.sql                # from file
+=== psql -c "SELECT current_time" –f examples.sql -c "SELECT current_time"  # multiple queries
+
+
+******************************************************************
+                          Passwords 
+******************************************************************
+===  SET password_encryption = 'scram-sha-256';
+=== \password                           # then pass will be sent as an encrypted password string to server
+=== ALTER USER myuser PASSWORD 'secret';    another method
+
+
+
+=== A password file contains the usual five fields that we require when connecting, as shown here:
+    host:port:dbname:user:password             example: myhost:5432:postgres:sriggs:moresecure
+    The password file is located using an environment variable named PGPASSFILE. If PGPASSFILE is
+    not set, a default filename and location must be searched for, as follows: 
+    • On *nix systems, look for ~/.pgpass.
+    • On Windows systems, look for %APPDATA%\postgresql\pgpass.conf, where %APPDATA%
+      is the application data subdirectory in the path (for me, that would be C:\).
+    The password file can contain multiple lines. Each line is matched against the requested
+      host:port:dbname:user combination until we find a line that matches. Then, we use that password.
+    The following are a few examples of wildcards that are allowed in passwords file:
+      • myhost:5432:*:sriggs:moresecurepw
+      • myhost:5432:perf:hannu:okpw
+      • myhost:*:perf:gianni:sicurissimo
+      
+=== PostgreSQL doesn’t enforce a password change cycle, so you may wish to use more advanced
+    authentication mechanisms, such as GSSAPI, SSPI, LDAP, or RADIUS. 
+
+
+******************************************************************
+                Using a connection service file 
+******************************************************************
+== You can set up a system-wide file as well as individual per-user files. The default file 
+   paths for these files are /etc/pg_service.conf and ~/.pg_service.conf respectively.
+1- create pg_service.conf file
+   [dbservice1]
+   host=postgres1
+   port=5432
+   dbname=postgres
+2- You can then copy it to either /etc/pg_service.conf or another agreed-upon central location.
+   You can then set the PGSYSCONFDIR environment variable to that directory location.
+   Alternatively, you can copy it to ~/.pg_service.conf. If you want to use a different name, indicate 
+   it using PGSERVICEFILE. Either way, you can then specify the name of the service in a connection 
+   string, such as in the following example:
+3- psql "service=dbservice1=cookbook user=gciolli"
+
+
+******************************************************************
+                      PostgreSQL with TPA
+******************************************************************
+== Trusted Postgres Architect (TPA) is a software based on Ansible that can be used to deploy da-
+   tabase clusters on a variety of platforms.
+1- https://www.enterprisedb.com/docs/tpa/latest/INSTALL/      (then tpaexec info)  
+2- tpaexec configure myfirstcluster --architecture M1 --platform docker --enable-repmgr --postgresql 16
+3- edit the config.yml for your needs
+4- tpaexec deploy myfirstcluster
+5- cd myfirstcluster  &&  ssh -F ssh_config kennel   then: su - postgres 
+6- from another terminal:   ssh -F ssh_config karma  then: su - barman 
+7- barman list-backup all
+
+== In the common microservices approach, each container runs a specific service. The way TPA uses Docker is 
+   quite different because each container runs a miniature copy of a Linux OS. This approach is not meant for 
+   production use, but it is a great way to test the behavior of a cluster with minimal resource use.
+
+
