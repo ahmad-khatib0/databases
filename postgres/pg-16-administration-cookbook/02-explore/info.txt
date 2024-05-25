@@ -1,0 +1,116 @@
+
+******************************************************************
+                          
+******************************************************************
+== SHOW server_version;    # or SHOW server_version_num;
+
+== SELECT date_trunc('second', current_timestamp - pg_postmaster_start_time()) as uptime;
+== SELECT pg_postmaster_start_time();            # same as prev, server uptime
+
+## Locating the database server files: 
+== Database server files are initially stored in a location referred to as the data directory. 
+   Additional data files may also be stored in tablespaces if any exist.
+== SHOW data_directory;              
+
+
+******************************************************************
+          Locating the database’s system identifier           
+******************************************************************
+## Each database server has a system identifier assigned when the database is initialized (created). 
+   The server identifier remains the same if the server is backed up, cloned, and so on.
+== display the system identifier: 
+++ pg_controldata <data-directory> | grep "system identifier"
+
+## Listing databases on the database server
+== psql -l
+== select datname from pg_database;
+
+## create db 
+== CREATE DATABASE cookbook;         or:  $ createdb cookbook
+
+## makes the output in psql appear as one column per line, rather than one row per line.
+== \x;
+
+## How many tables are there in a database?
+== SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('information_schema','pg_catalog');
+== psql -c "\d"
+++ exclude partitions, non-tables and ensure we don’t include internal schemas: 
+== SELECT count(*) FROM pg_class 
+   WHERE 
+        relkind = 'r'
+    AND NOT relispartition
+    AND relnamespace NOT IN (
+      SELECT oid FROM pg_namespace
+      WHERE 
+          nspname IN ('information_schema','pg_catalog', 'pg_toast')
+      AND nspname NOT LIKE 'pg_temp%' 
+      AND nspname NOT LIKE 'pg_toast_temp%'
+);
+
+## database size 
+== SELECT pg_database_size(current_database());            # current
+== SELECT sum(pg_database_size(datname)) from pg_database; # all 
+
+## How much memory does a database currently use?
+## The pg_buffercache extension provides a view that has one row for each buffer page. 
+   It can be installed easily, as it is distributed with PostgreSQL:
+== SELECT * FROM pg_buffercache LIMIT 1 ;
+== SELECT 
+       datname,
+       Pg_size_pretty(Cast(Current_setting('block_size') AS BIGINT) * Count(*))
+FROM   pg_buffercache c
+       LEFT JOIN pg_database d ON c.reldatabase = d.oid
+GROUP  BY datname
+ORDER  BY datname;  
+
+## How much disk space does a table use?
+== SELECT pg_size_pretty(pg_relation_size('table_name'));  # or:  $ pgsql:   \dt+ table_name
+++ largest 10 tables (all the tables in all the schemas)
+== SELECT 
+          Quote_ident(table_schema) || '.' || Quote_ident(table_name) AS name,
+          Pg_relation_size(Quote_ident(table_schema) || '.' || Quote_ident(table_name)) AS size
+   FROM   information_schema.tables
+   WHERE  table_schema NOT IN ( 'information_schema', 'pg_catalog' )
+   ORDER  BY size DESC
+   LIMIT  10;  
+
+
+## Quickly estimating the number of rows in a table (rather than doing count())
+== EXPLAIN SELECT * FROM mytable;     optimizer estimation 
+== SELECT 
+        ( CASE 
+            WHEN reltuples > 0 THEN Pg_relation_size(oid) * reltuples / ( 8192 * relpages )
+            ELSE 0
+            END
+        ):: bigint AS estimated_row_count
+FROM   pg_class
+WHERE  oid = 'mytable'::regclass;  
+
+++ create a function for the same functionalitty of the prev q (using an extrapolation)
+== CREATE OR REPLACE FUNCTION estimated_row_count(text)
+   RETURNS BIGINT 
+   LANGUAGE SQL
+   AS $$
+   SELECT 
+      ( CASE
+          WHEN reltuples > 0 THEN pg_relation_size($1) * reltuples / (8192*relpages)
+          ELSE 0 
+          END
+      )::BIGINT 
+   FROM pg_class 
+   WHERE oid = $1::regclass;
+   $$;
+== select estimated_row_count('myschema.mytable');   
+
+
+
+## Listing extensions in this database
+== SELECT * FROM pg_extension;
+
+
+## display full info about a table, the constraints that are defined upon it, and the constraints that reference it:
+== \d+ orders
+== SELECT * FROM pg_constraint WHERE confrelid = 'orders'::regclass;  # same, with Additional info
+
+
+

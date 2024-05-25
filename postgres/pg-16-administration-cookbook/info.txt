@@ -58,4 +58,92 @@ Check out some other useful features of psql, which are as follows:
 • Conditional execution, such as \if, \elif, \else, and \endif
 
 
+== The following are the system’s default data directory locations:
+  • Debian or Ubuntu systems: /var/lib/postgresql/MAJOR_RELEASE/main
+  • Red Hat RHEL, CentOS, and Fedora: /var/lib/pgsql/data/
+  • Systems deployed with Trusted Postgres Architect (TPA): /opt/postgres/data
+  • Windows: C:\Program Files\PostgreSQL\MAJOR_RELEASE\data
+
+== pg_lsclusters is part of the postgresql-common Debian/Ubuntu package, which provides a structure under which 
+   multiple versions of PostgreSQL can be installed, and multiple clusters can be maintained, at the same time.
+
+== The following are the default server log locations:
+   1- Debian or Ubuntu systems: /var/log/postgresql
+   2- Red Hat, RHEL, CentOS, and Fedora: /var/lib/pgsql/data/pg_log
+   3- System deployed with TPA: Messages are sent to syslog, and to /var/log/postgres/postgres.log
+   4- Windows systems: The messages are sent to the Windows Event Log
  
+== if you want to place certain schemas and tables in every new database, you can place them in template1 so that you 
+   don’t have to create them again every time you create a new database. The template0 database exists so that, when you 
+   alter template1, you still have a pristine copy to fall back on. In other words, if you break template1, then you can
+   drop it and recreate it from template0.
+
+== PostgreSQL stores information about the database in catalog tables. They describe every aspect of the way the 
+   database has been defined. There is a main set of catalog tables stored in a schema, called pg_catalog. There 
+   is a second set of catalog objects called the information schema, which is the standard SQL way of accessing 
+   information in a relational database.
+
+== Table partitions are implemented as standard tables, which are then considered as part of a larger
+   table, so you might want to exclude them from the total count of tables, i.e., you might prefer
+   that a table with 100 partitions is counted as 1 table instead of 101 tables. However, doing that is
+   more complicated. The information schema shows partitions as the same as tables, which is true
+   for PostgreSQL, so it is somewhat misleading. So what we want to do is exclude tables that are
+   also partitions. Partitions are marked in the pg_catalog.pg_class table, with a Boolean column
+   of relispartition. If we use pg_class, we also need to exclude non-tables and ensure we don’t
+   include internal schemas
+ 
+== PostgreSQL uses memory in a dynamic way across its databases, which is why the question
+   includes the word “currently.” By this, we mean that the shared buffers managed by a database
+   server are used concurrently by all its databases. This is based on demand, so if a database is un-
+   used, then the amount of memory it uses will decrease, because the same memory will gradually
+   be reused to cache data files from busier databases.
+ 
+== By default, PostgreSQL uses blocks whose size is 8 KB = 8,192 bytes, but the users could have
+   initialized their instance with a different block size, which is why it is safer to write current_
+   setting('block_size') instead of just 8192.
+
+ ╒════════════════════════════════════════════════════════════════════════════════════════════════════════╕
+  In PostgreSQL, a table is made up of many relations. The main relation is the data table. In addition, 
+  there are a variety of additional data files. Each index created on a table is also a relation. Long   
+  data values are placed in a secondary table named TOAST, which is an acronym for The Oversize          
+  Attribute Storage Technique; in most cases, each table also has a TOAST table and a TOAST index.       
+  Each relation consists of multiple data files. The main data files are broken into 1 GB pieces. The    
+  first file has no suffix; others have a numbered suffix (such as .2). There are also files marked _vm  
+  and _fsm, which represent the Visibility Map and Free Space Map, respectively. They are used as        
+  part of maintenance operations. They stay fairly small, even for very large tables.                    
+ └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+== You may also see files ending in _init; they are used by unlogged tables and their indexes, to restore 
+   them after a crash. Unlogged objects are called this way because they do not produce any write-ahead log 
+   (WAL for short), the PostgreSQL mechanism to ensure consistent crash recovery. So they support faster 
+   writes, but in the event of a crash they must be truncated, that is, restored to an empty state.
+
+== MVCC requires us to record information on each row of a table, stating when each change was
+   made. If the changes were made after the SQL statement began to execute, then we just ignore
+   those changes. This means that we need to carry out visibility checks on each row in the table
+   to allow us to work out the results of the count SQL statement. The optimization provided by
+   index-only scans is the ability to skip such checks on the table blocks that are already known to
+   be visible to all current sessions. Rows in these blocks can be counted directly in the index, which
+   is normally smaller than the table and is, therefore, faster.
+
+ ╒═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╕
+  == Object identifiers (OIDs) are used internally by PostgreSQL as primary keys for various system tables.     
+     Type oid represents an object identifier. There are also several alias types for oid, each named regsomething 
+  == Casting to regclass is a shortcut way of saying "this the name of a relation, please convert it to the     
+     oid of that relation". Casts to regclass are aware of the search_path, unlike querying pg_class for a         
+     relation's oid directly,                                                                                      
+  == VACUUM maintenance process. When that process runs against a table in Postgres, we record two pieces of 
+     information in the pg_class catalog entry for the table. These two items are the number of data blocks in 
+     the table (relpages) and the number of rows in the table (reltuples). Some people think they can use the 
+     value of reltuples in pg_class as an estimate, but it could be severely out of date. You will also be fooled
+     if you use information in another table named pg_stat_user_tables
+  == The Postgres optimizer uses the relpages and reltuples values to calculate the average rows
+     per block, which is also known as the average tuple density.
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+== To get an idea of which extensions are available, you can browse the list of additional modules
+   shipped together with PostgreSQL, which are almost all extensions, at:  /docs/current/static/contrib.html
+
+
+
+
