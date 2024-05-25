@@ -146,4 +146,110 @@ Check out some other useful features of psql, which are as follows:
 
 
 
+== PostgreSQL documents are written in Standard Generalized Markup Language (SGML), which
+   is similar to, but not the same as, Extensible Markup Language (XML). These files are then pro-
+   cessed to generate HyperText Markup Language (HTML) files, PDFs, and so on. This ensures that
+   all the formats have exactly the same content. Then, you can choose the format you prefer,
+
+
+== Planning a new database: 
+--   Database design – plan your database design.
+--   Calculate the initial database sizing.
+--   Transaction analysis – how will we access the database?
+--   Look at the most frequent access paths (for example, queries).
+--   What are the requirements for the response times?
+--   Hardware specification (which is still needed in the cloud).
+--   Initial performance thoughts – will all of the data fit into the available Random-Access Memory (RAM)?
+--   Choose the Operating System (OS) and filesystem types.
+--   Create a localization plan.
+--   Decide the server encoding, locale, and time zone.
+--   Access and security administration plan.
+--   Identify client systems and specify the required drivers.
+--   Create roles according to a plan for access control.
+--   Specify connection routes and authentication for the server in pg_hba.conf.
+--   Monitoring – are there PostgreSQL plugins for the monitoring solution you are already
+--   using (usually, the answer is yes)? What are the business-specific metrics we need to monitor?
+--   Maintenance plan – who will keep it working? How?
+--   Availability plan – consider the availability requirements.
+--   If you are working with a cloud database cluster, you should also consider the following:
+          • Plan your backup mechanism and test it.
+          • Create a High-Availability (HA) plan.
+          • Decide which form of replication you’ll need – if any.
+--   If you are going to deploy on Kubernetes, plenty of these things will be managed by the
+     operator, but you still need to think about:
+          • RAM and CPU specs.
+          • Sizing for the PVC.
+          • Availability, e.g., will the Kubernetes workers be spread across data centers?
+
+
+== The parameter file, which is known as postgresql.conf, is the main location that’s used to define parameter 
+   values for the PostgreSQL server. All the parameters can be set in the parameter file. There are also two 
+   other parameter files: pg_hba.conf and pg_ident.conf. Both of these relate to connections and security
+
+ ╒═══════════════════════════════════════════════════════════════════════════════════════════════════╕
+                               ALTER SYSTEM SET shared_buffers = '1GB';                                                          
+                               
+ == This command will not actually edit postgresql.conf. Instead, it writes the new setting to an- 
+    other file named postgresql.auto.conf. The effect is equivalent, albeit in a crash-safe way. The  
+    original configuration is never written, so it cannot be damaged in the event of a crash. If you  
+    mess up with too many ALTER SYSTEM commands, you can always delete postgresql.auto.conf           
+    manually and reload the configuration or restart PostgreSQL, depending on which parameters        
+    you changed. However, there are no serious checks on values passed to ALTER SYSTEM, so it’s       
+    relatively easy to break the configuration of the system and have the server fail to start when the
+    server does actually restart – which might be via a different person – sometime later.            
+ └───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+== Setting the configuration parameters in your programs
+-- Here are some examples of parameters that are designed to be user-modifiable:
+   • application_name – to help identify the session for monitoring
+   • synchronous_commit – to set the level of durability desired
+   • Various timeouts and check intervals:
+        • client_connection_check_interval
+        • idle_in_transaction_session_timeout
+        • idle_session_timeout
+        • lock_timeout
+        • statement_timeout
+   • Client-tuning parameters:
+        • commit_siblings
+        • cursor_tuple_fraction
+        • maintenance_work_mem
+        • vacuum_cost_delay
+        • work_mem
+   • Data type-specific settings:
+        • bytea_output
+        • DateStyle
+        • xmlbinary
+        • xmloption
+   • Optimization settings (too many to list, but not normally changed)
+
+
+
+== If you want an extension that is not pre-installed, you can choose from a wide range of options
+   from a number of sources, such as the following:
+-- Contrib: The PostgreSQL core includes many functions. There is also an official section for add-in 
+   modules, known as contrib modules. They are always available for your database server but are not 
+   automatically enabled in every database, because not all users might need them. In PostgreSQL 16, we 
+   have 50 such modules. These are documented at http://www.postgresql.org/docs/current/static/contrib.html.
+-- PGXN: This is the PostgreSQL Extension Network, a central distribution system dedicated to sharing 
+   PostgreSQL extensions. The website started in 2010 as a repository dedicated to the sharing of extension 
+   files. As of October 2023, there were 371 extensions from 410 different authors. You can learn more about 
+   it at http://pgxn.org/ 
+-- Separate projects: These are large external projects, such as PostGIS, offering extensive
+   and complex PostgreSQL modules. For more information, take a look at http://www.postgis.org/.
+
+== PostgreSQL can dynamically load libraries in the following ways:
+ • Using the explicit LOAD command in a session
+ • Using the shared_preload_libraries parameter in postgresql.conf at the server start
+ • At the session start, using the local_preload_libraries parameter for a specific user, as set using ALTER ROLE
+
+== When you issue a CREATE EXTENSION command, the database server looks for a file named EXTNAME.
+   control in the SHAREDIR/extension directory. That file tells PostgreSQL some properties of the
+   extension, including a description, some installation information, and the default version number
+   of the extension (which is unrelated to the PostgreSQL version number). Then, a creation script is
+   executed in a single transaction; thus, if it fails, the database is unchanged. The database server
+   also notes down the extension name and all the objects that belong to it in a catalog table.
+
+== The use of CASCADE in a CREATE statement only applies to extensions because, for other object
+   types, the dependency is not predefined in the object metadata and only exists after creating a
+   specific object (for example, a Foreign Key (FK)) 
 

@@ -1,0 +1,70 @@
+
+## After changing parameters marked SIGHUP (in postgresql.conf), we issue a reload command to the server, 
+   forcing PostgreSQL to re-read the postgresql.conf file (and all other configuration files). There are a
+   number of ways to do that, depending on your distribution and OS. The most common way is to
+   use pg_ctl with the same OS user that runs the PostgreSQL server process, as follows:
+== pg_ctl reload; 
+== pg_ctlcluster 16 main reload  # on debian
+== sudo systemctl reload postgresql@16-main
+
+++ After changing parameters marked POSTMASTER, we issue a restart of the server for changes to take 
+   effect – for instance, listen_addresses. The syntax is very similar to a reload operation, as shown here:
+== pg_ctl restart  ||  pg_ctlcluster 16 main restart ||  systemctl restart postgresql@16-main
+
+++ Furthermore, you can change the values stored in the parameter files directly from your session
+== ALTER SYSTEM SET shared_buffers = '1GB'; 
+
+
+## Setting the configuration parameters in your programs
+== You can change the value of a setting during your session, like this (for every future transaction):
+   SET work_mem = '16MB';
+== only for the duration of the current transaction (execute BEGIN; first): 
+   SET LOCAL work_mem = '16MB';
+== The setting will last until you issue this command:
+   RESET work_mem; 
+== Alternatively, you can issue the following command:
+   RESET ALL
+
+== SELECT name, setting, reset_val, source FROM pg_settings WHERE source = 'session'; 
+== RESET work_mem;   # after issuing it, the setting returns to reset_val, and source returns to the default
+
+
+## Finding the configuration settings for your session
+== SHOW config_file;      # or: show hba_file or: show ident_file;
+== SHOW work_mem;   or other things
+== SELECT * FROM pg_settings WHERE name = 'work_mem';  # another way
+
+
+## Finding parameters with non-default settings (changed settings)
+++ lists all parm values, excluding those whose current value is either the default or set from a confi file
+== SELECT name, source, setting, reset_val 
+   FROM pg_settings
+   WHERE  
+         source != 'default'
+   AND   source != 'override'
+   AND   setting != reset_val
+   ORDER by 2, 1;
+
+
+## Setting parameters for particular groups of users
+== For all users in the saas database, use the following commands:
+   ALTER DATABASE saas SET configuration_parameter = value1;
+== For a user named simon connected to any database
+   ALTER ROLE simon SET configuration_parameter = value2;
+== set a parameter for a user only when they’re connected to a specific database
+   ALTER ROLE simon IN DATABASE saas SET configuration_parameter = value3;
+
+
+## Adding an external module to PostgreSQL
+== shows one row for each extension that can be in- stalled.  
+   CREATE EXTENSION myextname;
+== list all objects in the dblink extension
+   \dx+ dblink;       # \dx+ db*    # to list extensions that starts with db  
+== Objects created as parts of extensions are not special in any way, except that you can’t drop them individually
+   DROP FUNCTION dblink_close(text);    # will throw an error
+== list extensions (instalted / versions...)
+   select * from pg_available_extensions      # or pg_available_extension_versions
+== ALTER EXTENSION mytext UPDATE TO '1.1';   # update
+
+
+
