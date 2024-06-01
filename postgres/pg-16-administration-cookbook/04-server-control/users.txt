@@ -1,0 +1,16 @@
+"postgres" ""
+
+# PgBouncer also supports SCRAM (Salt Challenge Response Authentication Mechanism)
+# authentication. If the PgBouncer to server connection requires SCRAM authentication, then you must also 
+# connect from the client to PgBouncer using SCRAM authentication. To use that effectively, you need to copy 
+# the SCRAM secrets from the database server into the users.txt file.
+
+# You may wish to create the users.txt file by directly copying the details from the server.
+# This can be done by using the following psql script (this is the same one that was used
+# for md5 authentication, back when that was recommended):
+# postgres=> \o users.txt
+# postgres=> \t
+# postgres=> SELECT '"'||rolname||'" "'||rolpassword||'"'
+# postgres-> FROM pg_authid;
+# postgres=> \q
+

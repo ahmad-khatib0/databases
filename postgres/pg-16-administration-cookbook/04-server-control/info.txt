@@ -1,0 +1,197 @@
+
+## Starting the database server manually 
+$ sudo systemctl start postgresql            # start all the database servers at once.
+$ sudo systemctl start postgresql@16-main    # start only one server (debian)
+$ sudo systemctl start postgresql-16         # rhel or fedora
+$ pg_ctlcluster 16 main start                # without systemd 
+$ sudo service postgresql-16 start           # (For older versions of Red Hat/Fedora/Rocky/AlmaLinux)
+$ net start postgresql-x64-16                # windows
+$ pg_ctl -D $PGDATA start                    # For Red Hat/Fedora
+
+## stoping the database server 
+$ sudo systemctl stop SERVICEUNIT           
+$ pg_ctlcluster 16 main stop -m fast         # without systemd
+$ pg_ctl -D datadir -m fast stop             # On other Linux/Unix distributions
+
+## Stopping the server in an emergency
+$ pg_ctl -D $PGDATA stop -m immediate        
+$ pg_ctlcluster 16 main stop -m immediate    # debian
+
+## Reloading server configuration files
+$ pg_ctlcluster 16 main reload               # On Ubuntu and Debian
+$ service postgresql-16 reload               # On older versions of Red Hat/Fedora,
+$ pg_ctl -D /var/lib/pgsql-16/data reload    # on Red Hat/Fedora
+$ SELECT pg_reload_conf();
+
+# See parameters that can only be reset by a server reload: 
+$ SELECT name, setting, unit ,(source = 'default') as is_default 
+  FROM pg_settings WHERE context = 'sighup'
+       AND (name like '%delay' or name like '%timeout')
+       AND setting != '0';
+# find info about postgres, like Process ID: 
+$ select * from pg_stat_activity;
+
+$ kill -SIGHUP <pid>                       # stop postgres
+# kill -SIGHUP <pid> && psql -t -c "select pid from pg_stat_activity limit 1";
+
+
+## Restarting the server quickly
+$ sudo systemctl restart SERVICEUNIT
+$ pg_ctlcluster 16 main restart -m fast
+$ pg_ctl -D $PGDATA restart -m fast
+
+## Preventing new connections
+# limit normal users from connecting to that database, although it will still allow superuser connections.
+$ ALTER DATABASE foo_db CONNECTION LIMIT 0;
+
+# Restrict the connections for a specific user (still allows connections if the user is a superuser;)
+$ ALTER USER foo CONNECTION LIMIT 0;
+# You Can also Change the Host-Based Authentication (HBA) file to refuse all incoming connections,
+# You can also Create a new file called pg_hba_lockdown.conf and add the following two lines to it
+  This puts rules in place that will completely lock down the server, including superusers. 
+  Note that this is a serious and drastic action:
+┌
+│ # TYPE DATABASE USER ADDRESS METHOD 
+│   local all all reject                
+│   host all all 0.0.0.0/0 reject       
+└                                      
+  -- If you still want superuser access, then try something such as the following:
+  # TYPE DATABASE USER ADDRESS METHOD
+    local all postgres peer
+    local all all reject
+    host all all 0.0.0.0/0 reject
+  -- This will prevent connections to the database by any user except the postgres operating system user ID,
+# Copy the existing pg_hba.conf file to pg_hba_access.conf so that it can be replaced later if required.
+# Copy pg_hba_lockdown.conf to pg_hba.conf.
+
+
+## Restricting users to only one session each
+$ ALTER ROLE fred CONNECTION LIMIT 1;
+$ SELECT rolconnlimit FROM pg_roles WHERE rolname = 'pgcookbook';
+$ SELECT count(*) FROM pg_stat_activity WHERE usename = 'fred';
+
+
+## Pushing users off the system
+## You can terminate a user’s session with the pg_terminate_backend() function, which is included with 
+   PostgreSQL. This function takes the PID, or the process ID, of the user’s session on the server. This 
+   process is known as the backend, and it is a different system process from the program that runs the client.
+
+$ SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity 
+  WHERE usename NOT IN ( SELECT usename FROM pg_user WHERE usesuper );
+-- Some other good filters are as follows:
+  • WHERE application_name = 'myappname'
+  • WHERE wait_event_type IS NOT NULL AND wait_event_type != 'Activity'
+  • WHERE state = 'idle in transaction'
+  • WHERE state = 'idle'
+
+
+## Using multiple schemas
+$ CREATE SCHEMA finance;
+$ select current_schema;
+
+# if we only want to let a specific user look at certain sets of tables (schema context): 
+$ ALTER ROLE fiona SET search_path = 'finance';
+
+$ GRANT ALL ON SCHEMA finance TO fiona;
+$ GRANT USAGE ON SCHEMA finance TO fiona;   # or for individual 
+$ GRANT CREATE ON SCHEMA finance TO fiona;
+
+-- In PostgreSQL, there is another technique to create a schema using the AUTHORIZATION option. This 
+   option designates a role as the owner of the schema and grants usage privileges on other schemas
+$ CREATE SCHEMA finance AUTHORIZATION fiona; # (will be owned by user fiona)
+$ GRANT USAGE ON SCHEMA sales TO fiona;
+$ GRANT SELECT ON month_end_snapshot TO public;
+
+# You can also set default privileges so that they are picked up when objects are created,
+$ ALTER DEFAULT PRIVILEGES FOR USER fiona IN SCHEMA finance 
+  GRANT SELECT ON TABLES TO PUBLIC;
+
+# Giving users their own private databases
+1- create the db and user
+$ create user fred;     then:    create database fred owner fred;
+2- revoke the privilege to connect to our new database from everybody except the designated user
+$ BEGIN;                                    REVOKE connect ON DATABASE fred FROM public;
+$ GRANT connect ON DATABASE fred TO fred;   COMMIT;
+
+
+## Running multiple servers on one system
+1- create an additional data directory:
+$ sudo -u postgres pg_createcluster 16 main2
+$ sudo -u postgres pg_ctlcluster 16 main2 start
+  (The data and configuration files are stored inside the /var/lib/postgresql/16/main2/ and 
+   etc/postgresql/16/main2/ directories, respectively,)
+$ psql --port 5433 -h /var/run/postgresql    # or: 
+$ psql --cluster 16/main2 
+
+# using redhat based 
+$ sudo -u postgres initdb -D /var/lib/pgsql/datadir2
+$ Then, modify the port parameter in the postgresql.conf file
+$ sudo -u postgres pg_ctl -D /var/lib/pgsql/datadir2 start
+-- This will create an additional database server at the default server version, with the 
+   files stored in /var/lib/pgsql/datadir2.
+
+## Setting up a connection pool (using pgbouncer)
+1- use what is mantioned in users.txt 
+2- pgbouncer -d pgbouncer.ini
+3- psql -p 6432 -h 127.0.0.1 -U postgres pgbouncer -c "reload"
+4- Finally, verify that PgBouncer’s max_client_conn parameter does not exceed the 
+   max_connections parameter on PostgreSQL.
+
+-- Instead of retrieving passwords from the userlist.txt file, PgBouncer can retrieve them directly
+   from PostgreSQL, using the optional auth_user and auth_query parameters. If auth_user is set,
+   PgBouncer will connect to the database using that user and run auth_query every time it needs to
+   retrieve the password of some user trying to log in. The default value of auth_query is as follows:
+$ SELECT usename, passwd FROM pg_shadow WHERE usename=$1
+
+# To shut down PgBouncer, we can just type SHUTDOWN or enter a single command,
+$ psql -p 6432 pgbouncer -c "SHUTDOWN"
+
+
+## Accessing multiple servers using the same host and port
+1- All you need to do is set up PgBouncer, as you did in the previous recipe, by replacing the
+   databases section of pgbouncer.ini with the following:
+      [databases]
+      myfirstdb = port=5432 host=localhost
+      anotherdb = port=5437 host=localhost
+      sparedb = port=5435 host=localhost
+2- psql -p 6432 -h 127.0.0.1 -U postgres myfirstdb       # or anotehr db
+3- Now, you can connect to the anotherdb database as if it were on the same server:
+$  \c anotherdb
+$ show port;              # prove its working (e.g => 5437 )
+$ show server_version;    # another pvoe
+
+## Running multiple PgBouncer on the same port to leverage multiple cores
+-- PgBouncer is a single process; therefore, it can only leverage one core on the system. Sometimes, 
+   leveraging a single thread becomes a bottleneck for performance. Therefore, PgBouncer also has 
+   specific parameters that allow users to run multiple instances of PgBouncer on the same port and host.
+++ Suppose a user wants to run two instances of PgBouncer on the same port and hosts – you need
+   three Unix directories and three different pgbouncer.ini files for the instances.
+1- Use the pgbouncer.ini mentioned in the recipe Setting up a connection pool, and create a separate 
+   configuration file for each PgBouncer instance, like pgbouncer1.ini and pgbouncer2.ini. For the first 
+   PgBouncer instance, add the following lines under the [pgbouncer] section for PgBouncer’s first 
+   instance (pgbouncer1.ini):
+        so_reuseport=1
+        unix_socket_dir=/tmp/pgbouncer1
+        peer_id=1 # id first PgBouncer instance
+   Add the following section after the [pgbouncer] section:
+        [peers]
+        1 = host=/tmp/pgbouncer1
+        2 = host=/tmp/pgbouncer2
+2- For the second PgBouncer, add the following files in pgbouncer2.ini under [pgbouncer]:  
+        so_reuseport=1
+        unix_socket_dir=/tmp/pgbouncer2
+        peer_id=2 # id first PgBouncer instance
+   Add the following section after the [pgbouncer] section:
+        1 = host=/tmp/pgbouncer1
+        2 = host=/tmp/pgbouncer2
+3- Create the following socket directories on the server:
+        mkdir /tmp/pgbouncer1
+        mkdir /tmp/pgbouncer2
+4- Launch PgBouncer instances using the following command:
+        pgbouncer -d pgbouncer1.ini
+        pgbouncer -d pgbouncer2.ini
+5- So Once the PgBouncer instances are started, they will all listen on the same port and will share
+   the connections. This will allow you to leverage multiple cores on your server to improve the
+   performance of PgBouncer.
+
+

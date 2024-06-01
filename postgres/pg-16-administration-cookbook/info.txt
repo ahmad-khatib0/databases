@@ -253,3 +253,32 @@ Check out some other useful features of psql, which are as follows:
    types, the dependency is not predefined in the object metadata and only exists after creating a
    specific object (for example, a Foreign Key (FK)) 
 
+
+== pg_ctlcluster 16 main stop -m fast
+   Fast mode has been the default since PostgreSQL 9.5 the previous default was to use smart mode,
+   meaning we have to wait for all users to finish before we exit. This can take a very long time, 
+   and all while new connections are refused.
+
+== Note that for DBAs (Database Administrators) with Oracle experience, immediate mode is the same thing as a 
+   shutdown abort. The PostgreSQL immediate mode stop is not the same thing as shutdown immediate on Oracle.
+
+== If you look at the pg_settings catalog table, you’ll see that there is a column named context.
+   Each setting has a time and a place where it can be changed. Some parameters can only be reset
+   by a server reload, so the value of context for those parameters will be sighup.
+
+== If you want to run multiple physical db on one server, then you have 5 main options:
+-- Option 0 (default): Run separate PostgreSQL instances in separate virtual machines on the
+   same physical server. This is the default option in cloud systems such as EDB BigAnimal,
+   as well as in on-premises deployments such as VMware or Kubernetes-based services.
+-- Option 1: Run multiple sets of tables in different schemas in one database of a PostgreSQL
+   instance (covered in the Using multiple schemas recipe).
+-- Option 2: Run multiple databases in the same PostgreSQL instance (covered in the Giving
+   users their own private databases recipe).
+-- Option 3: Run multiple PostgreSQL instances on the same virtual/physical system (covered
+   in the Running multiple servers on one system recipe).
+-- Option 4: Place all the data in one schema and one database but use row-level security
+   (RLS) to ensure that users only have access to some subset of the data. This provides
+   security but not resource control or convenience.
+
+
+
