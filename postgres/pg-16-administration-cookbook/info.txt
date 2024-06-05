@@ -282,3 +282,57 @@ Check out some other useful features of psql, which are as follows:
 
 
 
+== Tables can have multiple triggers fired on each event. Triggers are executed in alphabetical order,
+   so trigger names should have some kind of action name to differentiate them and to allow the
+   order to be specified. It might seem like a good idea to put INSERT, UPDATE, or DELETE in the trigger
+   name, but that can get confusing if you have triggers that work on both UPDATE and DELETE, and
+   all of this may end up as a mess.
+   The alphabetical order for trigger names always follows the C locale, regardless of your actual
+   locale settings. If your trigger names use non-ASCII characters, then the actual ordering might
+   not be what you expect.
+== A useful naming convention for triggers is as follows: {tablename}_{actionname}_{after|before}_trig
+
+╒═══════════════════════════════════════════════════════════════════════════════════════════════════╕
+  So, to enforce uniqueness, we need an index and a search operator defined on the data types of    
+  the columns. When we define normal UNIQUE constraints, we simply assume that we mean the          
+  equality operator (=) for the data type. The EXCLUDE syntax offers a richer syntax to allow us to 
+  express the same problem with different data types and operators.                                 
+└───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+== Uniqueness without indexes: 
+# To do that, you can do either of the following:
+• Use a serial data type.
+• Manually alter the default to be the nextval() function of a sequence.
+-- ( Consider, also, that this method provides the unique value as a default, 
+    which is not used when a user specifies an explicit value. )
+
+== The ANALYZE command works by taking a sample of the table data and then performing a statistical analysis 
+   of the results. The n_distinct value (see 05-tables-and-data/Finding a unique key) has two different 
+   meanings, depending on its sign: if positive, it is the estimate of the number of distinct values for the 
+   column; if negative, it is the estimate of the density of such distinct values, with the sign changed. 
+   For example, n_distinct = -0.2 means that a table of 1 million rows is expected to have 200,000 distinct
+   values, while n_distinct = 5 means that we expect just 5 distinct values.
+
+== it is reasonably simple to extend PostgreSQL with extra functions or sampling methods, so if you prefer 
+   another mechanism, you can find an external random number generator and create a new sampling method 
+   for the TABLESAMPLE clause. PostgreSQL includes two extra sampling methods, tsm_system_rows and 
+   tsm_system_time, as contrib extensions; they are excellent examples to start with.
+
+
+== A procedure is similar to a function, except that it doesn’t return any value or object. We use a procedure 
+   because it allows you to run multiple server-side transactions. By using procedures in this way, we can 
+   break a problem down into a set of smaller transactions that cause less of a problem with database bloat 
+   and long-running transactions.
+
+== Two desirable characteristics of partition keys are:
+ • They need to have a high enough cardinality, or range of values, for the number of partitions desired.
+ • They need to be columns that don’t change often, in order to avoid having to move rows among partitions.
+
+== The MERGE command is a SQL standard way to insert new data into a table, even when new data
+   partially overlaps with the existing data.
+
+
+
+
+

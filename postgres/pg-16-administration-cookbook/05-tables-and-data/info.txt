@@ -1,0 +1,199 @@
+
+## The standard names for the indexes in PostgreSQL are as follows: 
+    {tablename}_{columnname(s)}_{suffix}
+-- Here, the suffix is one of the following:
+  •  pkey: This is used for a primary key constraint.
+  •  key: This is used for a unique constraint.
+  •  excl: This is used for an exclusion constraint.
+  •  idx: This is used for any other kind of index.
+
+# example shows how the è and é characters are ordered in the C locale. ou can change the locale 
+  and/or the list of strings to explore how different locales affect ordering:
+$ WITH a(x) AS ( VALUES ('è'),('é')) SELECT * FROM a ORDER BY x COLLATE "C";
+
+= You can enforce a naming convention using an event trigger. Event triggers can only be created
+  by super users and will be called for all DDL statements, executed by any user:
+$ CREATE EVENT TRIGGER enforce_naming_conventions ON ddl_command_end
+  EXECUTE FUNCTION check_object_names();
+= The check_object_names() function can access the details of newly created objects using a query
+  like this so that you can write programs to enforce naming:
+$ SELECT object_identity FROM pg_event_trigger_ddl_command()
+  WHERE NOT in_extension AND command_tag LIKE 'CREATE%';
+
+
+## Handling objects with quoted names
+1- CREATE TABLE "MyCust" AS SELECT * FROM cust; 
+2- SELECT count(*) FROM MyCust;   this will throw an error of table not found
+# If you want to access a table that was created with quoted names, then you must use quoted names,  
+3- SELECT count(*) FROM "MyCust";
+
+-- PostgreSQL folds all names to lowercase when used within a SQL statement
+   SELECT * FROM mycust;          # or MYCUST;  or MyCust;   (same result: => mycust )
+   but not with qouted tables: 
+   SELECT * FROM "MyCust";        # it will be exactly MyCust
+
+# If you are handling object names in SQL, then you should use quote_ident() to ensure users
+  don’t call their objects a name that could cause security issues. quote_ident() puts double quotes
+  around a value if PostgreSQL requires that for an object name,
+$ SELECT quote_ident('MyCust');
+
+= The quote_ident() function may be especially useful if you are creating a table based 
+  on a variable name in a PL/pgSQL function
+$ EXECUTE 'CREATE TEMP TABLE ' || quote_ident(tablename) || '(col1 INTEGER);'
+
+## Identifying and removing duplicates
+1- First, identify the duplicates using a query, (We save the list of duplicates in a separate table 
+   because the query can be very slow if the table is big, so we don’t want to run it more than once.)
+$ CREATE UNLOGGED TABLE dup_cust AS
+  SELECT * FROM cust WHERE customerid IN (
+    SELECT customerid FROM cust GROUP BY customerid HAVING count(*) > 1
+  );
+# An UNLOGGED table can be created with less I/O because it does not produce Write Ahead Log
+  (WAL). It is better than a temporary table because it doesn’t disappear if you disconnect and
+  then reconnect. The other side of the coin is that you lose its contents after a crash, but this is
+  not too bad because if you choose to use an unlogged table, then you tell PostgreSQL that you
+  can recreate the contents of that table in the (unlikely) event of a crash.
+
+2-  The results can be used to identify the bad data manually, and you can resolve the problem by
+    carrying out the following steps:
+2.1 Merge the two rows to give the best picture of the data, if required. This might use values
+    from one row to update the row you decide to keep   
+    $ UPDATE cust SET age = 41 WHERE customerid = 4 AND lastname = 'Deckard'; 
+2.2 Delete the remaining undesirable rows
+    $ DELETE FROM cust WHERE customerid = 4 AND lastname = 'Batty';
+
+-- In some cases, the data rows might be completely identical (hard to detect), so let’s create an example:
+$ CREATE TABLE new_cust (customerid BIGINT NOT NULL);
+$ INSERT INTO new_cust VALUES (1), (1), (2), (3), (4), (4);
+
+++ In these circumstances, we should use a slightly different procedure to detect duplicates. We will
+   use a hidden column named ctid. It denotes the physical location of the row you are observing,
+   and rows will all have different ctid values. The steps are as follows:
+$ BEGIN;        
+# Then, we lock the table in order to prevent any INSERT, UPDATE, or DELETE operations,
+  which would alter the list of duplicates and/or change their ctid values:
+$ LOCK TABLE new_cust IN SHARE ROW EXCLUSIVE MODE;
+# Now, we locate all duplicates, keeping track of the minimum ctid value so that we don’t delete it:
+$ CREATE TEMPORARY TABLE dups_cust AS SELECT customerid, min(ctid) AS min_ctid
+  FROM new_cust GROUP BY customerid HAVING count(*) > 1;
+# Then, we can delete each duplicate, with the exception of the duplicate with the minimum ctid value:
+$ DELETE FROM new_cust USING dups_cust 
+  WHERE new_cust.customerid = dups_cust.customerid AND new_cust.ctid != dups_cust.min_ctid;
+$ COMMIT;
+# Finally, we clean up the table after the deletions:
+$ VACUUM new_cust;
+
+++ There’s more...
+   Locking the table against changes for long periods may not be possible while we remove duplicate rows. That 
+   creates some fairly hard problems with large tables. In that case, we need to do things slightly differently:
+1- Identify the rows to be deleted and save them in a side table.
+2- Build an index on the main table to speed up access to rows (maybe using the CONCURRENTLY
+   keyword, as explained in the Maintaining indexes recipe in Chapter 9, Regular Maintenance).
+3- Write a program that reads the rows from the side table in a loop, performing a series of smaller transactions.
+4- Start a new transaction.
+5- From the side table, read a set of rows that match.
+6- Select those rows from the main table for updates, relying on the index to make those accesses happen quickly.
+7- Delete the appropriate rows.
+8- Commit, and then loop again.
+
+
+## Preventing duplicate rows
+$ ALTER TABLE new_cust ADD PRIMARY KEY(customerid);   (This creates a new index named new_cust_pkey)
+$ ALTER TABLE new_cust ADD UNIQUE(customerid);       (new_cust_customerid_key)
+$ CREATE UNIQUE INDEX ON new_cust (customerid);
+
+-- All these techniques exclude duplicates by defining constraints and structures that guarantee uniqueness, 
+   just with slightly different syntaxes. All of them create an index, but only the first two create a 
+   formal constraint. Each of these techniques can be used when we have a primary key or unique constraint 
+   that uses multiple columns. The last method is important because it allows you to specify a WHERE clause 
+   on the index. This can be useful if you know that the column values are unique only in certain 
+   circumstances. The resulting index is then known as a partial index.
+$ CREATE UNIQUE INDEX ON partial_unique (customerid) WHERE status = 'OPEN'; # (a partial index)
+
+# handle complex duplicates values: 
+$ CREATE TABLE boxes (name text, position box);
+$ INSERT INTO boxes VALUES ('First', box '((0,0), (1,1))'), ('Second', box '((2,0), (2,1))');
+## To enforce uniqueness here, we want to create a constraint that will throw out any attempt to
+   add a position that overlaps with any existing box. The overlap operator for the box data type is
+   defined as &&, so we use the following syntax to add the constraint:
+$ ALTER TABLE boxes ADD EXCLUDE USING gist (position WITH &&);
+
+# We can use the same syntax even with the basic data types. So a fourth way of performing our first example 
+$ ALTER TABLE new_cust ADD EXCLUDE (customerid WITH =);
+
+# create a range type (e.g to store ip ranges in a table with checking overlap CONSTRAINT)
+$ CREATE TYPE inetrange AS RANGE (SUBTYPE = inet);
+$ CREATE TABLE iprange2 (iprange inetrange ,owner text);
+$ ALTER TABLE iprange2 ADD EXCLUDE USING GIST (iprange WITH &&);
+++ so now If we try to insert a range that overlaps with any of the existing ranges, it throws an error:
+$ INSERT INTO iprange2 VALUES ('[192.168.0.10,192.168.0.20]', 'Somebody else');
+
+
+## Finding a unique key for a set of data
+# identify the column(s) that together form a unique key. This is useful when a key is not documented
+$ analyze ord;
+$ SELECT attname, n_distinct FROM pg_stats
+  WHERE schemaname = 'public' AND tablename = 'ord';
+# If the value of n_distinct is -1, then the column is thought to be unique within the sample of rows examined.
+$ SELECT num_of_values, count(*) FROM (
+    SELECT customerid, count(*) AS num_of_values FROM ord GROUP BY customerid
+  ) s
+  GROUP BY num_of_values
+  ORDER BY count(*);
+
+## Generating test data
+# We use something named a set-returning function: 
+$ SELECT * FROM generate_series(1,5);
+$ SELECT date(t) FROM generate_series(now(), now() + '1 week', '1 day') AS f(t);
+
+• For a random integer value, this is the function:
+$ (random()*(2*10^9))::integer
+• For a random bigint value, the function is as follows:
+$ (random()*(9*10^18))::bigint
+• For random numeric data, the function is the following:
+$ (random()*100.)::numeric(5,2)
+• For a random-length string, up to a maximum length, this is the function:
+$ repeat('1',(random()*40)::integer)
+• For a random-length substring, the function is as follows:
+$ substr('abcdefghijklmnopqrstuvwxyz',1, (random()*25)::integer)
+• Here is the function for a random string from a list of strings:
+$ (ARRAY['one','two','three'])[0.5+random()*3]
+
+# Finally, we can put both techniques together to generate our table:
+$ SELECT key ,(random()*100.)::numeric(4,2), repeat('1',(random()*25)::integer)
+  FROM generate_series(1,10) AS f(key);
+
+# Alternatively, we can use random ordering:
+$ FROM generate_series(1,10) AS f(key) ORDER BY random() * 1.0;
+  
+
+## Randomly sampling data
+
+$ SELECT count(*) FROM mybigtable;          # 10000 rows 
+$ SELECT count(*) FROM mybigtable TABLESAMPLE BERNOULLI(1); # e.g 134 rows (BERNOULLI(1) means 1%)
+$ SELECT count(*) FROM mybigtable TABLESAMPLE BERNOULLI(1); # e.g 88 rows 
+# Now, we need to get the sampled data out of the database, which is tricky for a few reasons. Firstly, 
+  there is no option to specify a WHERE clause for pg_dump. Secondly, if you create a view that contains 
+  the WHERE clause, pg_dump dumps only the view definition, not the view itself.
+
+# so you can produce a sampled dump using pg_dump
+$ pg_dump –-exclude-table=mybigtable > db.dmp       # or:
+$ pg_dump –-table=mybigtable –-schema-only > mybigtable.schema
+$ psql -c '\copy (SELECT * FROM mybigtable TABLESAMPLE BERNOULLI (1)) to mybigtable.dat'
+
+# Then, reload onto a separate database using the following commands:
+psql -f db.dmp # or: mybigtable.schema
+psql -c '\copy mybigtable from mybigtable.dat'
+
+## Loading data from a spreadsheet
+$ \COPY sample FROM sample.csv CSV HEADER
+$ psql -c '\COPY sample FROM sample.csv CSV HEADER'
+# If you are submitting SQL through another type of connection:
+$ COPY sample FROM '/mydatafiledirectory/sample.csv' CSV HEADER;
+
+## Loading data from flat files
+$ pgloader csv.load
+
+## Making bulk data changes using server-side procedures with transactions
+
+
