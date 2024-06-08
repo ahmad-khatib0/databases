@@ -333,6 +333,50 @@ Check out some other useful features of psql, which are as follows:
    partially overlaps with the existing data.
 
 
+== Modern databases should be configured
+   using the Principle Of Least Privilege (POLP). Data access is managed by a privilege system,
+   where users are granted different privileges for different tables or other database objects, such
+   as schemas or functions. Thus, some records or tables can only be seen by certain users, and even
+   those tables that are visible to everyone can have restrictions in terms of who can insert new data
+   or change existing data
+
+== As of PostgreSQL16, passwords can be of arbitrary length. However, on PgBouncer, there is a limit 
+   of 996 characters, so that is a reasonable limit. Note that usernames can be—at most—63 characters.
+
+== If you wish to let a user verify or reload all PostgreSQL settings, you can assign the pg_read_all_
+   settings and pg_signal_backend roles.
+   If you want to allow a regular user to initiate a CHECKPOINT in the PostgreSQL database, the
+   pg_checkpoint role should be assigned.
+   To monitor and, if necessary, terminate connected users in PostgreSQL, privileges associated with
+   the pg_monitor and pg_signal_backend roles can be granted to the desired user. This enables
+   commands like pg_terminate_backend.
+   For a comprehensive understanding of predefined roles in PostgreSQL see:  /predefined-roles.html
+
+== decide which of these you want to AUDIT 
+   Which privileges can be executed? (Auditing access)
+   Which SQL statements were executed? (Auditing SQL)
+   Which tables were accessed? (Auditing table access)
+   Which data rows were changed? (Auditing data changes)
+   Which data rows were viewed? (Not described here—usually too much data)
 
 
+== Auditing SQL statements
+There are a few ways to capture SQL statements:
+• Using the PostgreSQL log_statement parameter—a fairly crude approach
+• Using the pgaudit extension’s pgaudit.log parameter
+• Using EDB Postgres’ audit facility
+
+The log_statement parameter can be set to one of the following options:
+• ALL: Logs all SQL statements executed at the top level
+• MOD: Logs all SQL statements for INSERT, UPDATE, DELETE, and TRUNCATE
+• ddl: Logs all SQL statements for DDL commands
+• NONE: No statements logged
+
+== pgaudit.log can be set to include zero or more of the following settings:
+   • READ: SELECT and COPY
+   • WRITE: INSERT, UPDATE, DELETE, TRUNCATE, and COPY
+   • FUNCTION: Function calls and DO blocks
+   • ROLE: GRANT , REVOKE, CREATE/ALTER/DROP ROLE
+   • DDL: All DDL not already included in the ROLE category
+   • MISC: Miscellaneous—DISCARD, FETCH, CHECKPOINT, VACUUM, and so on
 

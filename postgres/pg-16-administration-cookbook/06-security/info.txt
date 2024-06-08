@@ -1,0 +1,361 @@
+
+## The PostgreSQL superuser: 
+# A user becomes a superuser when they are created with the SUPERUSER attribute set:
+$ CREATE USER username SUPERUSER;
+
+# A user can be deprived of their superuser status by removing the SUPERUSER attribute
+$ ALTER USER username NOSUPERUSER;
+$ ALTER USER username SUPERUSER;      # set back
+
+## Revoking user access to tables
+# Current u must either be a superuser, owner of the table, or a user with a GRANT option for the table
+# To revoke all rights on the table1 table from the user2 user
+$ REVOKE ALL ON table1 FROM user2;
+
+# list privilege on table; 
+$ \z table_name;
+# Then, we check whether e.g user => user2 is a member of any of those roles by typing \du user2:
+$ \du user2:
+# In the previous step, we noticed that role3 had been granted the SELECT privilege 
+  (r for read) by the postgres user, so we must revoke it as follows:
+$ REVOKE role3 FROM user2;
+# We must also inspect role4 (saw using \du user2) . Even if it doesn’t have privileges on table1, in 
+  theory, it could be a member of one of the three roles that have privileges on that table. We issue 
+$ \du role4 
+# Our suspicion was well founded: user2 can get the INSERT privilege (a for append) on table1, 
+  first via role4 and then via role5. So, we must break this two-step chain as follows:
+$ REVOKE role4 FROM user2;
+
+
+## Default search path
+# see the effective search path for the current database: 
+$ show search_path;
+# To see which table will be affected if you omit the schema name
+$ \d x;
+
+
+## Granting user access to a table
+# Make sure that you've the appropriate roles defined and that privileges are revoked from the PUBLIC role:
+$ CREATE GROUP webreaders;
+$ CREATE USER tim;
+$ CREATE USER bob;
+$ REVOKE ALL ON SCHEMA someschema FROM PUBLIC;
+# We had to grant access to the schema in order to allow access to the table
+$ GRANT USAGE ON SCHEMA someschema TO webreaders;
+
+# It is often desirable to give a group of users’ similar permissions to a group of database objects.
+  To do this, you will first assign all the permissions to a proxy role (also known as a permission
+  group) and then assign the group to selected users, as follows:
+$ GRANT SELECT ON someschema.pages TO webreaders;
+$ GRANT INSERT ON someschema.viewlog TO webreaders;
+$ GRANT webreaders TO tim, bob;
+# Now, both tim and bob have the SELECT privilege on the pages table and INSERT on the viewlog
+  table. You can also add privileges to the group role after assigning it to users
+$ GRANT INSERT, UPDATE, DELETE ON someschema.comments TO webreaders;
+
+# We can grant privileges to all objects of a certain kind in a specific schema, as follows:
+$ GRANT SELECT ON ALL TABLES IN SCHEMA someschema TO bob;
+# You STILL NEED to grant the privileges on the schema itself in a separate GRANT statement.
+
+
+
+## Granting user access to specific columns
+$ CREATE TABLE someschema.sometable2(col1 int, col2 text);
+# grant somerole the ability to view existing data and insert new data, also we also want to 
+  provide the ability to amend existing data, limited to the col2 column only
+$ GRANT SELECT, INSERT ON someschema.sometable2 TO somerole;
+$ GRANT UPDATE (col2) ON someschema.sometable2 TO somerole;
+
+# example 2: Consider a table, t, with c1, c2, and c3 columns; there are two different ways of 
+  authorizing the user (u) to perform the following query:   SELECT * FROM t;
+# The first is by granting a table-level privilege
+$ GRANT SELECT ON TABLE t TO u;
+# The alternative way is by granting column-level privileges: 
+$ GRANT SELECT (c1,c2,c3) ON TABLE t TO u;
+
+# NOTE: consider this:  
+$ GRANT SELECT ON someschema.sometable2 TO somerole;
+$ REVOKE SELECT (col1) ON someschema.sometable2 FROM somerole;
+# The outcome, somehow surprisingly, will be that somerole is allowed to view all of the columns
+  of that table, using the table-level privilege granted by the first command. The second command
+  was ineffective because it tried to revoke a column-level privilege (SELECT on col1) that was never
+  granted in the first place.
+  
+
+## Granting user access to specific rows
+$ CREATE TABLE someschema.sometable3(col1 int, col2 text);
+# RLS MUST also be enabled on that table:
+$ ALTER TABLE someschema.sometable3 ENABLE ROW LEVEL SECURITY;
+# so now: First, we grant somerole the privilege to view the contents of the table
+$ GRANT SELECT ON someschema.sometable3 TO somerole;
+
+# In order to grant the ability to access some rows only, we create a policy specifying what is allowed 
+  and on which rows. (e.g here somerole is only allowed to select rows with positive values of col1)
+$ CREATE POLICY example1 ON someschema.sometable3
+  FOR SELECT TO somerole USING (col1 > 0);
+  
+++ The effect of this command is that the rows that do not satisfy the policy are SILENTLY SKIPPED
+++ What if we want to introduce a policy on the INSERT clause? The preceding policy shows how the
+   USING clause specifies which rows are affected. There is also a WITH CHECK clause that can be used
+   to specify which inserts are accepted. More generally, the USING clause applies to pre-existing rows,
+   while WITH CHECK applies to rows that are generated by the statement being analyzed. So, the
+   former works with SELECT, UPDATE, and DELETE, while the latter works with INSERT and UPDATE
+# so coming back to our example, we may want to allow inserts only where col1 is positive:
+$ CREATE POLICY example2 ON someschema.sometable3
+  FOR INSERT TO somerole WITH CHECK (col1 > 0);
+# We must also remember to allow INSERT commands on the table, as we did before with SELECT:
+$ GRANT INSERT ON someschema.sometable3 TO somerole;
+$ SELECT * FROM someschema.sometable3;
+
+$ INSERT INTO someschema.sometable3 VALUES (2, 'Two');
+$ SELECT * FROM someschema.sometable3;
+
+
+## Creating a new user
+$ createuser bob        # from command line,   if you want add:   --interactive 
+$ CREATE USER bob;      # or  CREATE USER alice CREATEDB;
+
+++ The CREATE USER and CREATE GROUP commands are actually variations of CREATE ROLE. The
+   CREATE USER username; statement is equivalent to CREATE ROLE username LOGIN;, and the
+   CREATE GROUP groupname; statement is equivalent to CREATE ROLE groupname NOLOGIN;.
+
+
+## Temporarily preventing a user from connecting
+$ alter user bob nologin;   # let the user connect again:      alter user bob login;
+# allow 10 concurrent connections for the bob user
+$ alter user bob connection limit 10;   
+
+
+## Revoking a user’s database access
+# Check if a database grants the CONNECT privilege to PUBLIC
+$ SELECT has_database_privilege('public', pguser, 'CONNECT');
+# If the above command returns true, revoke the CONNECT privilege from PUBLIC:
+$ REVOKE ALL ON DATABASE pguser FROM PUBLIC;
+# Now, grant the CONNECT privilege to specific roles that you wish to permit database con- nections:
+$ GRANT CONNECT ON DATABASE pguser TO alice;
+# Revoke the CONNECT privilege from users you temporarily wish to block from the database:
+$ REVOKE CONNECT ON DATABASE pguser FROM bob;
+
+## Forcing NOLOGIN users to disconnect
+# In order to make sure that all users whose login privileges have been revoked are disconnected
+$ SELECT pg_terminate_backend(pid) 
+  FROM pg_stat_activity a
+  JOIN pg_roles r ON a.usename = r.rolname AND NOT rolcanlogin;
+
+
+## Removing a user without dropping their data
+$ alter user bob nologin;
+$ GRANT bob TO bobs_replacement;
+# If you really need to get rid of a user, you have to assign all ownership to another user.
+$ REASSIGN OWNED BY bob TO bobs_replacement;
+
+## Checking whether all users have a secure password
+# To see which users don’t yet have SCRAM-encrypted passwords
+$ select usename,passwd from pg_shadow where passwd not like 'SCRAM%' or passwd is null;
+
+
+## Giving limited superuser powers to specific users
+$ ALTER ROLE BOB WITH CREATEDB;  
+$ ALTER ROLE BOB WITH CREATEROLE;
+
+# An ordinary user cannot tell PostgreSQL to copy table data from a file. Only a 
+  superuser or user with pg_read_server_files can do that
+$ create table lines(line text);
+$ copy lines from '/home/bob/names.txt';
+$ GRANT ALL ON TABLE lines TO bob;
+$ SET ROLE to bob;
+$ copy lines from '/home/bob/names.txt'; # will throw an error 
+# To let bob copy directly from the file, the superuser can grant pg_read_server_files privileges
+$ GRANT pg_read_server_files TO bob;
+
+
+## Assigning backup privileges to a user
+$ CREATE USER backup_user                  # for SECURITY reasons, use this user only for backups
+$ GRANT pg_read_all_data TO backup_user;   # logical backups  (access all data and table definitions in a db)
+$ ALTER USER backup_user WITH REPLICATION; # physical backups (using the pg_basebackup command)
+
+
+### Auditing database access
+
+# Auditing access (Reviewing which users have access to which information)
+$ select relname, attname from pg_attribute join pg_class c on attrelid = c.oid
+  where attname like '%acl%' and relkind = 'r';
+++ Write scripts that test access conforms to a specific definition. This can be achieved by 
+   writing tests using the database information functions provided by PostgreSQL—for
+   example, has_table_privilege(), has_column_privilege(), and so on.
+
+# For example, to log all DDL commands, edit your postgresql.conf file to set the following: 
+$ log_statement = 'ddl'
+++ A recommended minimal log_line_prefix format string to audit DDL is %t %u %d, which tells
+   PostgreSQL to log the timestamp, database user, and database name at the start of every log line.
+
+# e.g, to log all DDL commands (using pgaudit ext), edit your postgresql.conf file to set the following:
+$ pgaudit.log = 'role, ddl'
+# You should set these parameters to reduce the overhead of logging:
+pgaudit.log_catalog = off
+pgaudit.log_relation = off
+pgaudit.log_statement_once = on
+
+
+# Auditing table access
+# To make it easier to access the audit log per table, adjust these settings:
+pgaudit.log_relation = on
+pgaudit.log_statement_once = off
+$ pgaudit.role = 'investigator'  # the  role that will be used by the auditor
+$ GRANT INSERT, UPDATE, DELETE on <vulnerable_table> TO investigator;
+
+
+# Managing the audit log
+# If you allow the log entries to go to the normal server log, you can find all 
+  occurrences of the CREATE, ALTER, and DROP commands in the log:
+$  egrep -i "create|alter|drop" /var/log/postgresql/postgresql-16-main.log
+
+++ The default settings in the postgresql.conf file for log rotation looks like this:
+     log_filename = 'postgresql-%Y-%m-%d_%H%M%S.log'
+     log_rotation_age = 1d
+     log_rotation_size = 10MB
+++ Log rotation can also be implemented with third-party utilities. For instance, the default behavior
+   on Debian and Ubuntu distributions is to use the logrotate utility to compress or delete old log
+   files, according to the rules specified in the /etc/logrotate.d/postgresql-common file.
+
+
+# Auditing data changes (using audit_trigger extension)
+++ The extension creates a schema called audit into which all of the other components of the audit
+    trigger code are placed, after which we can enable auditing on specific tables.
+# As an example, we create standard pgbench tables by running the pgbench utility:
+$ pgbench -i
+# then enable auditing on the pgbench_account table (needs superuser)
+$ SELECT audit.audit_table('pgbench_accounts');
+# Now, we will perform some writing activities to see how it is audited. The easiest choice is to run
+  the pgbench utility again, this time to perform some transactions as follows:
+$ pgbench -t 1000
+# We expect the audit trigger to have logged the actions on pgbench_accounts, to verify this: 
+$ SELECT count(*) FROM audit.logged_actions;  # => 1000 rows,   or: 
+$ SELECT * FROM audit.logged_actions LIMIT 1;
+
+
+# Always knowing which user is logged in
+# It is possible to differentiate between the logged-in role and the assumed role
+$ select current_user, session_user;   => postgres | postgres
+$ set role to bob;
+$ select current_user, session_user;   => bob      | postgres
+
+++ Prepare the required group roles for different tasks and access levels 
+   by granting the necessary privileges and options.
+$ create user alice noinherit;   # with no privileges
+$ create user bob noinherit;
+# 2. Then, create roles for each group of privileges that you need to assign:
+$ create group sales;
+$ create group marketing;
+$ grant postgres to marketing;
+# 3. Now, grant each user the roles they may need:
+$ grant sales to alice;
+$ grant marketing to alice;
+$ grant sales to bob;
+
+++ After you do this, the alice and bob users have no rights after login, but they can assume the sales
+   role by executing SET ROLE TO sales, and alice can additionally assume the superuser role.
+++ If a role or user is created with the NOINHERIT option, this user will not automatically get the
+   rights that have been granted to the other roles that have been granted to them
+++ Not all rights come to users via GRANT commands. Some important rights are given via user attri-
+   butes (SUPERUSER, CREATEDB, and CREATEROLE), and these are never inherited.
+
+
+
+## Integrating with LDAP
+# In the pg_hba.conf PostgreSQL authentication file, we define some address ranges to use LDAP
+  as an authentication method, and we configure the LDAP server for this address range:
+$ host all all 10.10.0.1/16 ldap   ldapserver=ldap.our.net ldapprefix="cn=" ldapsuffix=",dc=our,dc=net"
+++ This setup makes the PostgreSQL server check passwords from the configured LDAP server.
+   
+# There’s more... 
+# Setting up the client to use LDAP
+# If you are using the pg_service.conf file to define your database access parameters, you may
+  define some to be queried from the LDAP server by including a line similar to the following in
+  your pg_service.conf file:
+$ ldap://ldap.mycompany.com/dc=mycompany,dc=com?uniqueMember?one?(cn=mydb)
+
+
+## Connecting using encryption (SSL / GSSAPI)
+$ Set ssl = on in postgresql.conf and restart the database if not already set.
+++ If ssl = on is set, then PostgreSQL listens to both plain and SSL connections on the same port
+   (5432, by default) and determines the type of connection from the first byte of a new connection.
+   Then, it proceeds to set up an SSL connection if an incoming request asks for it.
+# To let the client choose (to use ssl), use a line of the following form in the pg_hba.conf file:
+$ host database user IP-address/IP-mask auth-method
+$ If you want to allow only SSL clients, use the hostssl keyword instead of the host. 
+  If connecting using GSSAPI, you would use hostgssenc rather than hostssl,
+# The following fragment of pg_hba.conf enables both non-SSL and SSL connections from the 192.168.1.0/24 
+  local subnet, but it requires SSL from everybody accessing the database from other networks:
+$ host    all all     192.168.1.0/24 scram-sha-256  
+$ hostssl all all     0.0.0.0/0      scram-sha-256
+
+
+## Getting the SSL key and certificate
+$ openssl genrsa 2048 > server.key
+$ openssl req -new -x509 -key server.key -out server.crt
+
+## Using SSL certificates to authenticate
+# For testing purposes or to set up a single trusted user, you can use a self-signed certificate:
+$ openssl genrsa 2048 > client.key
+$ openssl req -new -x509 -key server.key -out client.crt
+# the pg_hba.conf
+$ hostssl all all 0.0.0.0/0 scram-sha-256 clientcert=1
+$ Put the client root certificate in the root.crt file in the server data directory ($PGDATA/root.crt).
+  This file may contain multiple trusted root certificates.
+$ In the client, put the client’s private key and certificate in 
+  ~/.postgresql/postgresql.key and ~/.postgresql/postgresql.crt. 
+# Make sure that the private key file is not world-readable
+$ chmod 0600 ~/.postgresql/postgresql.key
+
+++ If the clientcert=1 option is set for a hostssl row in pg_hba.conf, then PostgreSQL accepts
+   only connection requests accompanied by a valid certificate.
+
+@@ There’s more...
+# Avoiding duplicate SSL connection attempts
+++ The client may attempt to connect without SSL first and then attempt an SSL connection only after the 
+   server rejects the non-SSL connection. This duplicates a connection attempt every time a client 
+   accesses an SSL-only server. To make sure that the client tries to establish an SSL connection on the 
+   first attempt, SSLMODE must be set to prefer or higher.
+
+# Using the client certificate to select a database user
+++ It is possible to use the client certificate for two purposes at once: proving that the connecting
+   client is a valid one and selecting a database user to be used for the connection.
+$ hostssl all all 0.0.0.0/0 cert
+++ When using the cert authentication method, a valid client certificate is required, and the cn
+  (short for Common Name) attribute of the certificate will be compared to the requested database
+  username. The login will be allowed only if they match. It is possible to use a User Name Map to 
+  map common names in the certificates to database usernames, by specifying the map option:
+$ hostssl all all 0.0.0.0/0 cert map=x509cnmap
+
+
+## Mapping external usernames to database roles
+++ you may just need to enable an externally authenticated user to connect as multiple database users. 
+   In such cases, you can specify rules to map the external username to the appropriate database role.
+# Create a pg_ident.conf file in the usual place (PGDATA), with lines in the following format:
+$ map-name system-username database-username
+++ This should be read as “system-username is allowed to connect as database-username ,” rather
+   than “every time system-username connects, they will be forced to use database-username.”
+
+++ The following will allow any user authenticated with a @sales.comp.com email address to connect both
+   as a database user equal to the name before the @ sign-in their email address and as the sales
+   user. They will additionally allow anager@sales.comp.com to connect as the auditor user. Then,
+   edit the pg_hba.conf line to specify the map=salesmap option.
+$ salesmap /^(.*)@sales\.comp\.com$ \1 
+$ salesmap /^(.*)@sales\.comp\.com$ sales
+$ salesmap manager@sales.comp.com auditor
+
+
+## Setting up cloud security using predefined roles
+# 1- Set up a cloud account (for example, using BigAnimal) that supports PostgreSQL 16
+# 2- create some users 
+$ CREATE ROLE ops_dba LOGIN;   # This will monitor and control pg, but without being able to see any of the data 
+$ CREATE ROLE app_dba LOGIN;   # This will supervise the data in PostgreSQL
+$ GRANT pg_monitor, pg_signal_backend TO ops_dba;
+$ GRANT pg_read_all_data, pg_write_all_data TO app_dba;
+# 3- We can then assign individual users to each group role:
+$ GRANT app_dba TO donald;
+
+
+
+
